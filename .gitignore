@@ -1,0 +1,21 @@
+# Logs directory (generated files)
+logs/
+
+# Node modules
+node_modules/
+
+# Environment variables
+.env
+.env.local
+
+# IDE files
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# npm/pnpm files
+npm-debug.log*
+pnpm-debug.log*

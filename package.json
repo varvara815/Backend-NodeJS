@@ -1,0 +1,9 @@
+{
+  "name": "nodejs-logging-homework",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "generator": "node src/log-generator.js",
+    "analyzer": "node src/log-analyzer.js"
+  }
+}

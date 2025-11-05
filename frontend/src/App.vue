@@ -13,7 +13,7 @@
     </header>
 
     <main>
-      <ArticleList v-if="currentView === 'list'" ref="articleList" @view-article="viewArticle" />
+      <ArticleList v-if="currentView === 'list'" @view-article="viewArticle" />
       <CreateArticle v-if="currentView === 'create'" @article-created="onArticleCreated" />
       <ViewArticle v-if="currentView === 'view'" :article-id="selectedArticleId" @back="currentView = 'list'" />
     </main>
@@ -45,12 +45,6 @@ export default {
     },
     onArticleCreated() {
       this.currentView = 'list';
-      // Auto-refresh article list
-      this.$nextTick(() => {
-        if (this.$refs.articleList) {
-          this.$refs.articleList.loadArticles();
-        }
-      });
     }
   }
 }

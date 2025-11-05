@@ -15,7 +15,7 @@
 
 <script>
 import axios from 'axios';
-import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
+import { API_BASE_URL } from '../constants.js';
 
 export default {
   name: 'ArticleList',
@@ -29,16 +29,13 @@ export default {
   async mounted() {
     await this.loadArticles();
   },
-  
-  expose: ['loadArticles'],
-  
   methods: {
     async loadArticles() {
       this.loading = true;
       this.error = null;
       
       try {
-        const response = await axios.get(`${API_BASE_URL}${API_ENDPOINTS.ARTICLES}`);
+        const response = await axios.get(`${API_BASE_URL}/api/articles`);
         this.articles = response.data;
       } catch (error) {
         this.error = 'Failed to load articles. Please check if the server is running.';

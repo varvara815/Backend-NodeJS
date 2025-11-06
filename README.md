@@ -92,7 +92,11 @@ pnpm run dev  # Frontend: http://localhost:3000
 
 ```
 ├── backend/           # Node.js Express server
+│   ├── routes/        # API route handlers
+│   │   └── articles.js  # Articles CRUD operations
 │   ├── server.js      # Main server file
+│   ├── fileStorage.js # File system operations
+│   ├── validators.js  # Input validation functions
 │   └── package.json   # Backend dependencies
 ├── frontend/          # Vue.js application
 │   ├── src/

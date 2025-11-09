@@ -25,11 +25,10 @@
 import axios from 'axios';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { API_BASE_URL, API_ENDPOINTS } from '../config/api.js';
+import { API_BASE_URL, EDITOR_OPTIONS } from '../constants.js';
 
 export default {
   name: 'CreateArticle',
-
   components: {
     QuillEditor
   },
@@ -40,16 +39,7 @@ export default {
       loading: false,
       error: null,
       success: null,
-      editorOptions: {
-        theme: 'snow',
-        modules: {
-          toolbar: [
-            ['bold', 'italic', 'underline'],
-            [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-            ['link']
-          ]
-        }
-      }
+      editorOptions: EDITOR_OPTIONS
     }
   },
   methods: {
@@ -59,19 +49,7 @@ export default {
       this.success = null;
       
       try {
-        if (this.title.length > 200) {
-          this.error = 'Title must be less than 200 characters';
-          this.loading = false;
-          return;
-        }
-        
-        if (this.content.length > 50000) {
-          this.error = 'Content must be less than 50000 characters';
-          this.loading = false;
-          return;
-        }
-        
-        await axios.post(`${API_BASE_URL}${API_ENDPOINTS.ARTICLES}`, {
+        await axios.post(`${API_BASE_URL}/api/articles`, {
           title: this.title,
           content: this.content
         });

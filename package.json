@@ -1,31 +1,13 @@
 {
   "name": "articles-management-system",
   "version": "1.0.0",
-  "description": "Full-stack articles management application",
   "scripts": {
     "postinstall": "cd backend && pnpm install && cd ../frontend && pnpm install",
-    "install:all": "cd backend && pnpm install && cd ../frontend && pnpm install",
-    "start": "concurrently \"npm run start:backend\" \"npm run start:frontend\"",
-    "start:backend": "cd backend && pnpm run dev",
-    "start:frontend": "cd frontend && pnpm run dev",
-    "dev": "npm run start"
-  },
-  "keywords": ["articles", "vue", "express", "nodejs"],
-  "author": "",
-  "license": "ISC",
-  "dependencies": {
-    "express": "^4.18.2",
-    "cors": "^2.8.5",
-    "uuid": "^9.0.1",
-    "vue": "^3.3.4",
-    "axios": "^1.5.0",
-    "@vueup/vue-quill": "^1.2.0",
-    "dompurify": "^3.3.0",
-    "quill": "^2.0.3"
+    "dev": "concurrently \"cd backend && pnpm dev\" \"cd frontend && pnpm dev\"",
+    "dev:backend": "cd backend && pnpm dev",
+    "dev:frontend": "cd frontend && pnpm dev"
   },
   "devDependencies": {
-    "concurrently": "^8.2.2",
-    "@vitejs/plugin-vue": "^4.3.4",
-    "vite": "^4.4.9"
+    "concurrently": "^8.2.2"
   }
 }

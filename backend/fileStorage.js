@@ -1,7 +1,10 @@
 import fs from 'fs/promises';
 import path from 'path';
+import { fileURLToPath } from 'url';
 
-const DATA_DIR = path.join(process.cwd(), '..', 'data');
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const DATA_DIR = path.join(__dirname, '..', 'data');
 
 export const initDataDir = async () => {
   try {
@@ -18,6 +21,7 @@ export const readArticle = async (id) => {
 };
 
 export const writeArticle = async (id, article) => {
+  await initDataDir();
   const filePath = path.join(DATA_DIR, `${id}.json`);
   await fs.writeFile(filePath, JSON.stringify(article, null, 2));
 };
@@ -38,6 +42,7 @@ export const articleExists = async (id) => {
 };
 
 export const getAllArticles = async () => {
+  await initDataDir();
   const files = await fs.readdir(DATA_DIR);
   const articles = [];
   for (const file of files) {

@@ -1,5 +1,9 @@
 import express from 'express';
 import { v4 as uuidv4 } from 'uuid';
+import multer from 'multer';
+import path from 'path';
+import { fileURLToPath } from 'url';
+import fs from 'fs/promises';
 import { validateArticle, validateId } from '../validators.js';
 import { 
   getAllArticles, 
@@ -8,6 +12,47 @@ import {
   deleteArticle, 
   articleExists 
 } from '../fileStorage.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+const UPLOADS_DIR = path.join(__dirname, '..', '..', 'uploads');
+
+const fixEncoding = (filename) => {
+  try {
+    return Buffer.from(filename, 'latin1').toString('utf8');
+  } catch {
+    return filename;
+  }
+};
+
+const storage = multer.diskStorage({
+  destination: (req, file, cb) => cb(null, UPLOADS_DIR),
+  filename: (req, file, cb) => {
+    const originalName = fixEncoding(file.originalname);
+    cb(null, `${Date.now()}-${originalName}`);
+  }
+});
+
+const upload = multer({
+  storage,
+  fileFilter: (req, file, cb) => {
+    const allowedMimes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+    const allowedExts = /\.(jpg|jpeg|png|gif|pdf)$/i;
+    const originalName = fixEncoding(file.originalname);
+    if (allowedMimes.includes(file.mimetype) && allowedExts.test(originalName)) {
+      cb(null, true);
+    } else {
+      cb(new Error('Invalid file type. Only JPG, PNG, GIF, and PDF allowed'), false);
+    }
+  },
+  limits: { fileSize: 10 * 1024 * 1024 }
+});
+
+const broadcast = (wss, message) => {
+  wss.clients.forEach(client => {
+    if (client.readyState === 1) client.send(JSON.stringify(message));
+  });
+};
 
 const router = express.Router();
 
@@ -78,16 +123,73 @@ router.put('/:id', async (req, res) => {
 
     const existingArticle = await readArticle(id);
     const updatedArticle = {
+      ...existingArticle,
       title: title.trim(),
       content: content.trim(),
-      createdAt: existingArticle.createdAt,
       updatedAt: new Date().toISOString()
     };
 
     await writeArticle(id, updatedArticle);
+    broadcast(req.wss, { type: 'article-updated', articleId: id, title: title.trim() });
     res.json({ id, message: 'Article updated successfully' });
   } catch (error) {
     res.status(500).json({ error: 'Error updating article' });
+  }
+});
+
+router.post('/:id/attachments', upload.single('file'), async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!validateId(id) || !(await articleExists(id))) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
+    if (!req.file) {
+      return res.status(400).json({ error: 'Invalid file type. Only JPG, PNG, GIF, and PDF allowed' });
+    }
+    const article = await readArticle(id);
+    const originalName = fixEncoding(req.file.originalname);
+    const attachment = { filename: req.file.filename, originalName, size: req.file.size };
+    article.attachments = [...(article.attachments || []), attachment];
+    await writeArticle(id, article);
+    res.json({ message: 'File uploaded', attachment });
+  } catch (error) {
+    res.status(500).json({ error: 'Upload failed' });
+  }
+});
+
+router.delete('/:id/attachments/:filename', async (req, res) => {
+  try {
+    const { id, filename } = req.params;
+    if (!validateId(id) || !(await articleExists(id))) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
+    const article = await readArticle(id);
+    article.attachments = (article.attachments || []).filter(a => a.filename !== filename);
+    await writeArticle(id, article);
+    await fs.unlink(path.join(UPLOADS_DIR, filename)).catch(() => {});
+    res.status(204).send();
+  } catch (error) {
+    res.status(500).json({ error: 'Delete failed' });
+  }
+});
+
+router.post('/:id/notify-update', async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { title } = req.body;
+
+    if (!validateId(id)) {
+      return res.status(400).json({ error: 'Invalid article ID' });
+    }
+
+    if (!(await articleExists(id))) {
+      return res.status(404).json({ error: 'Article not found' });
+    }
+
+    broadcast(req.wss, { type: 'article-updated', articleId: id, title: title });
+    res.json({ message: 'Notification sent' });
+  } catch (error) {
+    res.status(500).json({ error: 'Error sending notification' });
   }
 });
 

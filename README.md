@@ -9,10 +9,12 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 - Create new articles with WYSIWYG editor
 - **Edit existing articles** with WYSIWYG editor
 - **Delete articles** with confirmation
+- **File attachments** - Upload and attach files to articles (JPG, PNG, GIF, PDF)
+- **Real-time notifications** - WebSocket notifications for article updates
 - File-based storage (JSON files)
 - Input validation and error handling
 - Responsive design
-- Security: XSS protection with DOMPurify
+- Security: XSS protection with DOMPurify, file type validation
 
 ## Prerequisites
 
@@ -21,16 +23,34 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 
 ## Setup & Installation
 
-### Quick Start (Recommended)
+### 1. Install dependencies
 ```bash
-# 1. Install dependencies
 pnpm install
+```
 
-# 2. Start backend (in first terminal)
+### 2. Start the application
+
+**Option A: Start everything at once**
+```bash
+pnpm dev
+```
+
+**Option B: Start separately (recommended for development)**
+```bash
+# Terminal 1 - Backend
+pnpm run dev:backend
+
+# Terminal 2 - Frontend  
+pnpm run dev:frontend
+```
+
+**Option C: Manual start**
+```bash
+# Terminal 1
 cd backend
 pnpm dev
 
-# 3. Start frontend (in second terminal)
+# Terminal 2
 cd frontend
 pnpm dev
 ```
@@ -39,42 +59,6 @@ The application will be available at:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:3001
 
-### Alternative: Install dependencies separately
-```bash
-# Install root dependencies first
-pnpm install
-
-# Then install backend and frontend dependencies
-pnpm run install:all
-
-# Start backend (in first terminal)
-cd backend
-pnpm dev
-
-# Start frontend (in second terminal)
-cd frontend
-pnpm dev
-```
-
-### Option 3: Detailed Manual Setup
-```bash
-# 1. Install backend dependencies
-cd backend
-pnpm install
-
-# 2. Install frontend dependencies
-cd ../frontend
-pnpm install
-
-# 3. Start backend (in one terminal)
-cd backend
-pnpm run dev  # Server: http://localhost:3001
-
-# 4. Start frontend (in another terminal)
-cd frontend
-pnpm run dev  # Frontend: http://localhost:3000
-```
-
 ## API Endpoints
 
 - `GET /api/articles` - Get all articles (sorted by creation date)
@@ -82,11 +66,28 @@ pnpm run dev  # Frontend: http://localhost:3000
 - `POST /api/articles` - Create new article
 - `PUT /api/articles/:id` - Update existing article
 - `DELETE /api/articles/:id` - Delete article
+- `POST /api/articles/:id/attachments` - Upload file attachment to article
+- `DELETE /api/articles/:id/attachments/:filename` - Delete file attachment
+- `POST /api/articles/:id/notify-update` - Send WebSocket notification for article update
+- `WebSocket ws://localhost:3001` - Real-time notifications for article changes
+
+## New Features
+
+### File Attachments
+- Upload and attach files (JPG, PNG, GIF, PDF, max 10MB)
+- Files displayed at the top of article pages
+- Click to view/download, delete while editing
+
+### Real-Time Notifications
+- WebSocket notifications for article updates (text or file changes)
+- Users control when to refresh content
+- Multiple notification types: yellow banner, success message, global toast
 
 ## Validation Rules
 
 - **Title**: Required, max 200 characters
 - **Content**: Required, max 50,000 characters
+- **File attachments**: JPG, PNG, GIF, PDF only, max 10MB per file
 
 ## Project Structure
 
@@ -105,13 +106,15 @@ pnpm run dev  # Frontend: http://localhost:3000
 │   │   └── App.vue      # Main app component
 │   └── package.json   # Frontend dependencies
 ├── data/             # Article storage (JSON files)
+├── uploads/          # Uploaded file attachments
 └── README.md
 ```
 
 ## Technologies Used
 
 - **Frontend**: Vue.js 3, Quill.js WYSIWYG editor, Axios, Vite, DOMPurify
-- **Backend**: Node.js, Express.js, CORS, UUID
-- **Storage**: File system (JSON files)
-- **Security**: DOMPurify for XSS protection
+- **Backend**: Node.js, Express.js, CORS, UUID, Multer, WebSockets
+- **Storage**: File system (JSON files), File uploads
+- **Real-time**: WebSocket connections for live notifications
+- **Security**: DOMPurify for XSS protection, File type validation
 - **Package Manager**: pnpm

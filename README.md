@@ -20,15 +20,60 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 
 - Node.js (v16 or higher)
 - pnpm (install with: `npm install -g pnpm`)
+- PostgreSQL (v12 or higher)
 
 ## Setup & Installation
 
-### 1. Install dependencies
+### 1. Setup PostgreSQL Database
+
+**Create database:**
+
+Open pgAdmin or run in terminal:
+```bash
+psql -U postgres
+```
+
+Then execute:
+```sql
+CREATE DATABASE articles_db;
+\q
+```
+
+**Configure environment variables:**
+
+Copy the example environment file and configure it:
+```bash
+cd backend
+# On Linux/Mac:
+cp .env.example .env
+# On Windows:
+copy .env.example .env
+```
+
+Then edit `backend/.env` and set your PostgreSQL password:
+```env
+DB_PASSWORD=your_postgres_password
+```
+
+### 2. Install dependencies
 ```bash
 pnpm install
 ```
 
-### 2. Start the application
+### 3. Run database migration
+```bash
+cd backend
+pnpm run migrate
+```
+
+You should see:
+```
+Database connection successful!
+Tables created successfully!
+Migration completed!
+```
+
+### 4. Start the application
 
 **Option A: Start everything at once**
 ```bash
@@ -89,32 +134,53 @@ The application will be available at:
 - **Content**: Required, max 50,000 characters
 - **File attachments**: JPG, PNG, GIF, PDF only, max 10MB per file
 
+## Database Schema
+
+**Articles Table:**
+
+| Column | Type | Description | Example |
+|--------|------|-------------|----------|
+| id | UUID | Primary key | `39f39454-077e-4dea-9173-b6c226d94341` |
+| title | VARCHAR(200) | Article title | `"My First Article"` |
+| content | TEXT | Article content (HTML) | `"<p>Hello world</p>"` |
+| attachments | JSON | Array of file attachments | `[{"filename":"doc.pdf","originalName":"document.pdf","size":12345}]` |
+| createdAt | TIMESTAMP | Creation timestamp | `2025-11-22 13:47:58.519+03` |
+| updatedAt | TIMESTAMP | Last update timestamp | `2025-11-22 13:47:58.519+03` |
+
 ## Project Structure
 
 ```
-├── backend/           # Node.js Express server
-│   ├── routes/        # API route handlers
-│   │   └── articles.js  # Articles CRUD operations
-│   ├── server.js      # Main server file
-│   ├── fileStorage.js # File system operations
-│   ├── validators.js  # Input validation functions
-│   └── package.json   # Backend dependencies
-├── frontend/          # Vue.js application
+├── backend/
+│   ├── config/
+│   │   ├── database.js    # Database configuration
+│   │   └── paths.js       # Path constants
+│   ├── models/
+│   │   └── Article.js     # Sequelize Article model
+│   ├── routes/
+│   │   └── articles.js    # API route handlers
+│   ├── middleware/
+│   │   └── validateId.js  # ID validation middleware
+│   ├── server.js          # Main server file
+│   ├── migrate.js         # Database migration script
+│   ├── validators.js      # Input validation
+│   └── .env               # Environment variables
+├── frontend/
 │   ├── src/
-│   │   ├── components/  # Vue components
-│   │   ├── constants.js # API configuration
-│   │   └── App.vue      # Main app component
-│   └── package.json   # Frontend dependencies
-├── data/             # Article storage (JSON files)
-├── uploads/          # Uploaded file attachments
-└── README.md
+│   │   ├── components/    # Vue components
+│   │   ├── constants.js   # API configuration
+│   │   ├── App.vue        # Main app component
+│   │   └── main.js        # Entry point
+│   ├── index.html
+│   └── vite.config.js
+└── uploads/               # Uploaded file attachments
 ```
 
 ## Technologies Used
 
 - **Frontend**: Vue.js 3, Quill.js WYSIWYG editor, Axios, Vite, DOMPurify
-- **Backend**: Node.js, Express.js, CORS, UUID, Multer, WebSockets
-- **Storage**: File system (JSON files), File uploads
+- **Backend**: Node.js, Express.js, CORS, Multer, WebSockets
+- **Database**: PostgreSQL with Sequelize ORM
+- **Storage**: PostgreSQL database for articles, file system for uploads
 - **Real-time**: WebSocket connections for live notifications
 - **Security**: DOMPurify for XSS protection, File type validation
 - **Package Manager**: pnpm

@@ -14,5 +14,5 @@ export const validateArticle = (title, content) => {
 };
 
 export const validateId = (id) => {
-  return /^[a-zA-Z0-9_-]+$/.test(id);
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id);
 };

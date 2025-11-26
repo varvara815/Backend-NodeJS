@@ -11,7 +11,7 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 - **Delete articles** with confirmation
 - **File attachments** - Upload and attach files to articles (JPG, PNG, GIF, PDF)
 - **Real-time notifications** - WebSocket notifications for article updates
-- File-based storage (JSON files)
+- PostgreSQL database storage
 - Input validation and error handling
 - Responsive design
 - Security: XSS protection with DOMPurify, file type validation
@@ -60,17 +60,18 @@ DB_PASSWORD=your_postgres_password
 pnpm install
 ```
 
+**Note**: This will automatically install `sequelize-cli` as a dev dependency for database migrations.
+
 ### 3. Run database migration
 ```bash
 cd backend
-pnpm run migrate
+pnpm run db:migrate
 ```
 
 You should see:
 ```
-Database connection successful!
-Tables created successfully!
-Migration completed!
+== 20251126104101-create-articles: migrating =======
+== 20251126104101-create-articles: migrated (0.014s)
 ```
 
 ### 4. Start the application
@@ -152,7 +153,8 @@ The application will be available at:
 ```
 ├── backend/
 │   ├── config/
-│   │   ├── database.js    # Database configuration
+│   │   ├── config.cjs     # Sequelize CLI configuration
+│   │   ├── database.js    # Database connection
 │   │   └── paths.js       # Path constants
 │   ├── models/
 │   │   └── Article.js     # Sequelize Article model
@@ -160,8 +162,8 @@ The application will be available at:
 │   │   └── articles.js    # API route handlers
 │   ├── middleware/
 │   │   └── validateId.js  # ID validation middleware
+│   ├── migrations/        # Database migration files
 │   ├── server.js          # Main server file
-│   ├── migrate.js         # Database migration script
 │   ├── validators.js      # Input validation
 │   └── .env               # Environment variables
 ├── frontend/

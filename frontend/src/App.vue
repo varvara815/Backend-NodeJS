@@ -65,9 +65,6 @@ export default {
                                     this.selectedArticleId === data.articleId && 
                                     this.$refs.viewArticle?.editing;
         
-        const isViewingThisArticle = this.currentView === 'view' && 
-                                    this.selectedArticleId === data.articleId;
-        
         if (data.type === 'article-updated' && !isEditingThisArticle) {
           this.showNotification(`Article "${data.title}" was updated`);
         } else if (data.type === 'attachment-added' && !isEditingThisArticle) {

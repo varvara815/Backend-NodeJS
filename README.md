@@ -4,17 +4,33 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 
 ## Features
 
+### Articles Management
+- **Full CRUD operations** for articles (Create, Read, Update, Delete)
 - View list of articles (sorted by creation date)
 - Read individual articles with HTML content (XSS protected)
 - Create new articles with WYSIWYG editor
-- **Edit existing articles** with WYSIWYG editor
-- **Delete articles** with confirmation
+- Edit existing articles with WYSIWYG editor
+- Delete articles with confirmation
 - **File attachments** - Upload and attach files to articles (JPG, PNG, GIF, PDF)
+
+### Comments System
+- **Full CRUD operations** for comments (Create, Read, Update, Delete)
+- Add comments to articles
+- Edit comments inline
+- Delete comments with confirmation
+- Comments displayed with timestamp
+
+### Workspaces
+- Articles organized in workspaces
+- Filter articles by workspace
+- Display workspace information in article list
+
+### Real-time & Security
 - **Real-time notifications** - WebSocket notifications for article updates
-- PostgreSQL database storage
+- PostgreSQL database storage for all data
 - Input validation and error handling
 - Responsive design
-- Security: XSS protection with DOMPurify, file type validation
+- File type validation
 
 ## Prerequisites
 
@@ -107,14 +123,26 @@ The application will be available at:
 
 ## API Endpoints
 
-- `GET /api/articles` - Get all articles (sorted by creation date)
-- `GET /api/articles/:id` - Get specific article by ID
+### Articles
+- `GET /api/articles` - Get all articles (sorted by creation date, supports ?workspace_id filter)
+- `GET /api/articles/:id` - Get specific article by ID (includes comments)
 - `POST /api/articles` - Create new article
 - `PUT /api/articles/:id` - Update existing article
 - `DELETE /api/articles/:id` - Delete article
 - `POST /api/articles/:id/attachments` - Upload file attachment to article
 - `DELETE /api/articles/:id/attachments/:filename` - Delete file attachment
 - `POST /api/articles/:id/notify-update` - Send WebSocket notification for article update
+
+### Comments
+- `GET /api/articles/:articleId/comments` - Get all comments for an article
+- `POST /api/articles/:articleId/comments` - Create new comment
+- `PUT /api/comments/:id` - Update existing comment
+- `DELETE /api/comments/:id` - Delete comment
+
+### Workspaces
+- `GET /api/workspaces` - Get all workspaces
+
+### WebSocket
 - `WebSocket ws://localhost:3001` - Real-time notifications for article changes
 
 ## New Features
@@ -145,8 +173,29 @@ The application will be available at:
 | title | VARCHAR(200) | Article title | `"My First Article"` |
 | content | TEXT | Article content (HTML) | `"<p>Hello world</p>"` |
 | attachments | JSON | Array of file attachments | `[{"filename":"doc.pdf","originalName":"document.pdf","size":12345}]` |
+| workspace_id | UUID | Foreign key to workspaces (nullable) | `39f39454-077e-4dea-9173-b6c226d94341` |
 | createdAt | TIMESTAMP | Creation timestamp | `2025-11-22 13:47:58.519+03` |
 | updatedAt | TIMESTAMP | Last update timestamp | `2025-11-22 13:47:58.519+03` |
+
+**Comments Table:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| content | TEXT | Comment content |
+| article_id | UUID | Foreign key to articles |
+| createdAt | TIMESTAMP | Creation timestamp |
+| updatedAt | TIMESTAMP | Last update timestamp |
+
+**Workspaces Table:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| name | VARCHAR(100) | Workspace name |
+| description | TEXT | Workspace description (nullable) |
+| createdAt | TIMESTAMP | Creation timestamp |
+| updatedAt | TIMESTAMP | Last update timestamp |
 
 ## Project Structure
 
@@ -157,11 +206,23 @@ The application will be available at:
 │   │   ├── database.js    # Database connection
 │   │   └── paths.js       # Path constants
 │   ├── models/
-│   │   └── Article.js     # Sequelize Article model
+│   │   ├── Article.js     # Sequelize Article model
+│   │   ├── Comment.js     # Sequelize Comment model
+
+│   │   ├── Workspace.js   # Sequelize Workspace model
+│   │   └── index.js       # Model associations
 │   ├── routes/
-│   │   └── articles.js    # API route handlers
+│   │   ├── articles.js    # Article API routes
+│   │   ├── comments.js    # Comment API routes
+
+│   │   └── workspaces.js  # Workspace API routes
 │   ├── middleware/
-│   │   └── validateId.js  # ID validation middleware
+│   │   └── errorHandler.js  # Error handling middleware
+│   ├── services/
+│   │   ├── articleService.js    # Article business logic
+│   │   ├── databaseService.js   # Database connection
+│   │   ├── fileService.js       # File upload handling
+│   │   └── websocketService.js  # WebSocket notifications
 │   ├── migrations/        # Database migration files
 │   ├── server.js          # Main server file
 │   ├── validators.js      # Input validation
@@ -184,5 +245,5 @@ The application will be available at:
 - **Database**: PostgreSQL with Sequelize ORM
 - **Storage**: PostgreSQL database for articles, file system for uploads
 - **Real-time**: WebSocket connections for live notifications
-- **Security**: DOMPurify for XSS protection, File type validation
+- **Security**: File type validation
 - **Package Manager**: pnpm

@@ -3,8 +3,9 @@
     <div v-if="successMessage" class="success-notification">
       {{ successMessage }}
     </div>
-    <div v-if="pendingUpdate && !editing" class="update-notification">
-      Article has been updated. <button @click="refreshArticle" class="btn-refresh">Refresh to see changes</button>
+    <div v-if="hasNewVersion && !editing" class="new-version-banner">
+      <span>A new version of this article is available.</span>
+      <button @click="reloadArticle" class="btn-reload">Reload</button>
     </div>
     <div class="button-group">
       <button @click="goBack" class="btn-back">← Back</button>
@@ -17,6 +18,12 @@
     <div v-else-if="article">
       <div v-if="!editing">
         <h2>{{ article.title }}</h2>
+        <div v-if="article.Workspace" class="article-workspace">
+          <span class="workspace-label">Workspace:</span> {{ article.Workspace.name }}
+        </div>
+        <div v-else class="article-workspace">
+          <span class="workspace-label">Workspace:</span> No workspace
+        </div>
         <div class="article-content" v-html="sanitizedContent"></div>
         <div v-if="article.attachments && article.attachments.length" class="attachments">
           <h3>Attachments</h3>
@@ -26,43 +33,24 @@
             </div>
           </div>
         </div>
-      </div>
-      <div v-else class="edit-form">
-        <h2>Edit Article</h2>
-        <input v-model="editForm.title" placeholder="Title" />
-        <QuillEditor
-          v-model:content="editForm.content"
-          content-type="html"
-          :options="editorOptions"
+        
+        <CommentsSection 
+          :article-id="articleId" 
+          :comments="article.Comments" 
+          @comment-added="loadArticle(articleId)"
+          @comment-updated="loadArticle(articleId)"
+          @comment-deleted="loadArticle(articleId)"
+          @show-success="showSuccessMessage"
         />
-        <div v-if="article.attachments && article.attachments.length" class="attachments">
-          <h3>Attachments</h3>
-          <div class="attachment-list">
-            <div v-for="att in article.attachments" :key="att.filename" class="attachment-item">
-              <a :href="`http://localhost:3001/uploads/${att.filename}`" target="_blank">{{ att.originalName }}</a>
-              <button @click="deleteAttachment(att.filename)" class="btn-delete-att">×</button>
-            </div>
-          </div>
-        </div>
-        <div class="upload-section">
-          <div class="file-input-wrapper">
-            <input type="file" @change="handleFileSelect" accept=".jpg,.jpeg,.png,.gif,.pdf" ref="fileInput" class="file-input-hidden" />
-            <button @click="$refs.fileInput.click()" class="file-input-button">
-              Choose File (JPG, PNG, GIF, PDF only)
-            </button>
-            <span class="file-name">{{ selectedFile ? selectedFile.name : 'No file selected' }}</span>
-          </div>
-          <button @click="uploadFile" :disabled="!selectedFile || uploading" class="btn-upload">
-            {{ uploading ? 'Uploading...' : 'Upload File' }}
-          </button>
-          <div v-if="fileError" class="file-error">{{ fileError }}</div>
-        </div>
-        <div class="edit-buttons">
-          <button @click="saveEdit" class="btn-save">Save</button>
-          <button @click="cancelEdit" class="btn-cancel">Cancel</button>
-        </div>
-        <div v-if="editError" class="error">{{ editError }}</div>
       </div>
+      <ArticleEditor 
+        v-else
+        :article="article"
+        :workspaces="workspaces"
+        @save="handleSave"
+        @cancel="editing = false"
+        @show-success="showSuccessMessage"
+      />
     </div>
     <div v-else-if="error" class="error">{{ error }}</div>
   </div>
@@ -71,14 +59,13 @@
 <script>
 import axios from 'axios';
 import DOMPurify from 'dompurify';
-import { QuillEditor } from '@vueup/vue-quill';
-import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { API_BASE_URL, EDITOR_OPTIONS } from '../constants.js';
+import ArticleEditor from './ArticleEditor.vue';
+import CommentsSection from './CommentsSection.vue';
+import { API_BASE_URL } from '../constants.js';
 
 export default {
   name: 'ViewArticle',
-  components: { QuillEditor },
-  inject: ['getWebSocket'],
+  components: { ArticleEditor, CommentsSection },
   props: ['articleId'],
   data() {
     return {
@@ -86,21 +73,17 @@ export default {
       loading: false,
       error: null,
       editing: false,
-      editForm: { title: '', content: '' },
-      editError: null,
-      editorOptions: EDITOR_OPTIONS,
-      selectedFile: null,
-      uploading: false,
-      wsMessageHandler: null,
-      fileError: null,
-      originalAttachments: [],
-      pendingUpdate: false,
-      successMessage: null
+      successMessage: null,
+      workspaces: [],
+      hasNewVersion: false
     }
   },
   computed: {
     sanitizedContent() {
-      return this.article ? DOMPurify.sanitize(this.article.content) : '';
+      return this.article ? DOMPurify.sanitize(this.article.content, {
+        ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'b', 'i', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'a', 'img'],
+        ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'style', 'class']
+      }) : '';
     }
   },
   watch: {
@@ -114,28 +97,18 @@ export default {
     }
   },
   mounted() {
+    this.loadWorkspaces();
     this.setupWebSocketListener();
   },
   beforeUnmount() {
     if (this.wsMessageHandler) {
-      const ws = this.getWebSocket();
-      ws?.removeEventListener('message', this.wsMessageHandler);
+      const ws = this.$root.ws;
+      if (ws) {
+        ws.removeEventListener('message', this.wsMessageHandler);
+      }
     }
   },
   methods: {
-    setupWebSocketListener() {
-      this.wsMessageHandler = (event) => {
-        const data = JSON.parse(event.data);
-        if (data.type === 'article-updated' && data.articleId === this.articleId && !this.editing) {
-          this.pendingUpdate = true;
-        }
-      };
-      
-      const ws = this.getWebSocket();
-      if (ws) {
-        ws.addEventListener('message', this.wsMessageHandler);
-      }
-    },
     async loadArticle(id) {
       this.loading = true;
       this.error = null;
@@ -150,51 +123,16 @@ export default {
         this.loading = false;
       }
     },
+    async loadWorkspaces() {
+      try {
+        const response = await axios.get(`${API_BASE_URL}/api/workspaces`);
+        this.workspaces = response.data;
+      } catch (error) {
+        console.error('Error loading workspaces:', error);
+      }
+    },
     startEdit() {
-      this.editForm = { title: this.article.title, content: this.article.content };
-      this.originalAttachments = [...(this.article.attachments || [])];
       this.editing = true;
-      this.editError = null;
-    },
-    cancelEdit() {
-      this.editing = false;
-      this.editError = null;
-    },
-    async saveEdit() {
-      this.editError = null;
-      
-      const hasTextChanges = this.editForm.title.trim() !== this.article.title || 
-                             this.editForm.content.trim() !== this.article.content;
-      
-      const currentAttachments = this.article.attachments || [];
-      const hasAttachmentChanges = JSON.stringify(this.originalAttachments) !== JSON.stringify(currentAttachments);
-      
-      if (!hasTextChanges && !hasAttachmentChanges) {
-        this.editing = false;
-        return;
-      }
-      
-      if (hasTextChanges) {
-        try {
-          await axios.put(`${API_BASE_URL}/api/articles/${this.articleId}`, this.editForm);
-          await this.loadArticle(this.articleId);
-        } catch (error) {
-          this.editError = error.response?.data?.error || 'Failed to update article';
-          return;
-        }
-      } else if (hasAttachmentChanges) {
-        try {
-          await axios.post(`${API_BASE_URL}/api/articles/${this.articleId}/notify-update`, {
-            title: this.article.title
-          });
-        } catch (error) {
-          console.warn('Failed to send notification:', error);
-        }
-      }
-      
-      this.editing = false;
-      this.pendingUpdate = false;
-      this.showSuccessMessage('Article updated successfully');
     },
     goBack() {
       this.$emit('back');
@@ -203,73 +141,45 @@ export default {
     async deleteArticle() {
       if (!confirm('Are you sure you want to delete this article?')) return;
       try {
-        await axios.delete(`${API_BASE_URL}/api/articles/${this.articleId}`);
-        this.goBack();
+        const response = await axios.delete(`${API_BASE_URL}/api/articles/${this.articleId}`);
+        if (response.status === 204) {
+          this.showSuccessMessage('Article deleted successfully');
+          this.$emit('article-deleted');
+          setTimeout(() => {
+            this.goBack();
+          }, 500);
+        }
       } catch (error) {
+        console.error('Delete error:', error);
         this.error = error.response?.data?.error || 'Failed to delete article';
       }
     },
-    handleFileSelect(event) {
-      const file = event.target.files[0];
-      this.fileError = null;
-      
-      if (!file) {
-        this.selectedFile = null;
-        return;
-      }
-      
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
-      const allowedExts = /\.(jpg|jpeg|png|gif|pdf)$/i;
-      
-      if (!allowedTypes.includes(file.type) || !allowedExts.test(file.name)) {
-        this.fileError = `Invalid file type. Only JPG, PNG, GIF, and PDF files are allowed.`;
-        this.selectedFile = null;
-        this.$refs.fileInput.value = '';
-        return;
-      }
-      
-      if (file.size > 10 * 1024 * 1024) {
-        this.fileError = `File too large. Maximum size is 10MB.`;
-        this.selectedFile = null;
-        this.$refs.fileInput.value = '';
-        return;
-      }
-      
-      this.selectedFile = file;
-    },
-    async uploadFile() {
-      if (!this.selectedFile) return;
-      this.uploading = true;
-      const formData = new FormData();
-      formData.append('file', this.selectedFile);
-      try {
-        await axios.post(`${API_BASE_URL}/api/articles/${this.articleId}/attachments`, formData);
-        await this.loadArticle(this.articleId);
-        this.selectedFile = null;
-        this.$refs.fileInput.value = '';
-      } catch (error) {
-        this.error = error.response?.data?.error || 'Upload failed';
-      } finally {
-        this.uploading = false;
-      }
-    },
-    async deleteAttachment(filename) {
-      try {
-        await axios.delete(`${API_BASE_URL}/api/articles/${this.articleId}/attachments/${filename}`);
-        await this.loadArticle(this.articleId);
-      } catch (error) {
-        this.error = 'Failed to delete attachment';
-      }
-    },
-    refreshArticle() {
+    handleSave() {
+      this.editing = false;
       this.loadArticle(this.articleId);
-      this.pendingUpdate = false;
     },
     showSuccessMessage(message) {
       this.successMessage = message;
       setTimeout(() => {
         this.successMessage = null;
       }, 3000);
+    },
+    setupWebSocketListener() {
+      const ws = this.$root.ws;
+      if (!ws) return;
+      
+      this.wsMessageHandler = (event) => {
+        const data = JSON.parse(event.data);
+        if (data.type === 'article-updated' && data.articleId === this.articleId && !this.editing) {
+          this.hasNewVersion = true;
+        }
+      };
+      
+      ws.addEventListener('message', this.wsMessageHandler);
+    },
+    reloadArticle() {
+      this.hasNewVersion = false;
+      this.loadArticle(this.articleId);
     }
   }
 }
@@ -286,7 +196,7 @@ export default {
   animation: slideIn 0.3s ease;
 }
 
-.update-notification {
+.new-version-banner {
   background: #fff3cd;
   color: #856404;
   padding: 12px 16px;
@@ -294,23 +204,24 @@ export default {
   margin-bottom: 15px;
   border: 1px solid #ffeaa7;
   display: flex;
-  align-items: center;
   justify-content: space-between;
+  align-items: center;
+  animation: slideIn 0.3s ease;
 }
 
-.btn-refresh {
-  background: #007bff;
-  color: white;
+.btn-reload {
+  background: #ffc107;
+  color: #000;
   border: none;
-  padding: 6px 12px;
+  padding: 8px 20px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 13px;
-  margin-left: 10px;
+  font-size: 14px;
+  font-weight: bold;
 }
 
-.btn-refresh:hover {
-  background: #0056b3;
+.btn-reload:hover {
+  background: #ffb300;
 }
 
 .button-group {
@@ -322,88 +233,90 @@ export default {
 button {
   color: white;
   border: none;
-  padding: 8px 16px;
+  padding: 12px 28px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 14px;
+  font-size: 16px;
   margin-left: 8px;
 }
 
 .btn-back {
-  background: #6c757d;
+  background: #8a8a89;
 }
 
 .btn-back:hover {
-  background: #5a6268;
+  background: #757574;
 }
 
 .btn-edit {
-  background: #007bff;
+  background: #3574b8;
 }
 
 .btn-edit:hover {
-  background: #0056b3;
+  background: #2a5fa0;
 }
 
 .btn-delete {
-  background: #dc3545;
+  background: #ba3434;
 }
 
 .btn-delete:hover {
-  background: #c82333;
-}
-
-.btn-save {
-  background: #28a745;
-}
-
-.btn-save:hover {
-  background: #218838;
-}
-
-.btn-cancel {
-  background: #6c757d;
-}
-
-.btn-cancel:hover {
-  background: #5a6268;
-}
-
-.edit-form input {
-  width: 100%;
-  padding: 10px;
-  margin-bottom: 15px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-  font-size: 14px;
-}
-
-.edit-form .ql-editor {
-  min-height: 200px;
-}
-
-.edit-form .ql-container {
-  margin-bottom: 15px;
-}
-
-.edit-buttons {
-  display: flex;
-  gap: 10px;
-  margin-top: 10px;
+  background: #a02d2d;
 }
 
 h2 {
   color: #333;
-  margin-bottom: 15px;
+  margin-bottom: 10px;
   border-bottom: 2px solid #007bff;
   padding-bottom: 10px;
+}
+
+.article-workspace {
+  color: #6c757d;
+  font-size: 14px;
+  margin-bottom: 20px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  border-radius: 4px;
+  border-left: 3px solid #007bff;
+}
+
+.workspace-label {
+  font-weight: bold;
+  color: #495057;
 }
 
 .article-content {
   line-height: 1.6;
   color: #555;
-  white-space: pre-wrap;
   margin-top: 20px;
+}
+
+.article-content :deep(p) {
+  margin-bottom: 1em;
+}
+
+.article-content :deep(ul), 
+.article-content :deep(ol) {
+  margin: 1em 0;
+  padding-left: 2em;
+}
+
+.article-content :deep(li) {
+  margin-bottom: 0.5em;
+}
+
+.article-content :deep(strong) {
+  font-weight: bold;
+}
+
+.article-content :deep(em) {
+  font-style: italic;
+}
+
+.article-content :deep(a) {
+  color: #007bff;
+  text-decoration: underline;
 }
 
 .loading, .error {
@@ -459,95 +372,4 @@ h2 {
   text-decoration: underline;
 }
 
-.btn-delete-att {
-  background: #dc3545;
-  color: white;
-  border: none;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-  cursor: pointer;
-  font-size: 18px;
-  line-height: 1;
-  padding: 0;
-  margin: 0;
-}
-
-.btn-delete-att:hover {
-  background: #c82333;
-}
-
-.upload-section {
-  display: flex;
-  gap: 10px;
-  margin-top: 20px;
-  margin-bottom: 20px;
-  align-items: center;
-}
-
-.upload-section input[type="file"] {
-  flex: 1;
-  padding: 8px;
-  border: 1px solid #ddd;
-  border-radius: 4px;
-}
-
-.btn-upload {
-  background: #28a745;
-  padding: 8px 16px;
-}
-
-.btn-upload:hover:not(:disabled) {
-  background: #218838;
-}
-
-.btn-upload:disabled {
-  background: #ccc;
-  cursor: not-allowed;
-}
-
-.file-input-wrapper {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  flex: 1;
-}
-
-.file-input-hidden {
-  display: none;
-}
-
-.file-input-button {
-  background: #007bff;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 14px;
-  transition: background-color 0.3s;
-}
-
-.file-input-button:hover {
-  background: #0056b3;
-}
-
-.file-name {
-  color: #666;
-  font-size: 14px;
-  flex: 1;
-}
-
-.file-input:hover {
-  border-color: #007bff;
-}
-
-.file-error {
-  background: #f8d7da;
-  color: #721c24;
-  padding: 8px;
-  border-radius: 4px;
-  margin-top: 10px;
-  font-size: 14px;
-}
 </style>

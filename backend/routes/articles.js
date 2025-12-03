@@ -93,11 +93,7 @@ router.post(
     try {
       await articleService.addAttachment(req.params.id, req.file);
       const article = await articleService.getArticleById(req.params.id);
-      websocketService.broadcast(req.wss, {
-        type: 'attachment-added',
-        articleId: req.params.id,
-        title: article.title,
-      });
+
       res.json({ message: 'File uploaded', attachments: article.attachments });
     } catch (error) {
       if (

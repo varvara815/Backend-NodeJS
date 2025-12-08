@@ -8,7 +8,8 @@
     "db:migrate": "sequelize-cli db:migrate",
     "db:migrate:status": "sequelize-cli db:migrate:status",
     "db:migrate:undo": "sequelize-cli db:migrate:undo",
-    "setup": "pnpm run db:migrate"
+    "db:seed": "sequelize-cli db:seed:all",
+    "setup": "pnpm run db:migrate && pnpm run db:seed"
   },
   "dependencies": {
     "cors": "^2.8.5",

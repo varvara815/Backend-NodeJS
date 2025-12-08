@@ -78,17 +78,13 @@ pnpm install
 
 **Note**: This will automatically install `sequelize-cli` as a dev dependency for database migrations.
 
-### 3. Run database migration
+### 3. Setup database
 ```bash
 cd backend
-pnpm run db:migrate
+pnpm run setup
 ```
 
-You should see:
-```
-== 20251126104101-create-articles: migrating =======
-== 20251126104101-create-articles: migrated (0.014s)
-```
+This will apply migrations and populate sample data.
 
 ### 4. Start the application
 
@@ -224,6 +220,7 @@ The application will be available at:
 │   │   ├── fileService.js       # File upload handling
 │   │   └── websocketService.js  # WebSocket notifications
 │   ├── migrations/        # Database migration files
+│   ├── seeders/           # Database seed files
 │   ├── server.js          # Main server file
 │   ├── validators.js      # Input validation
 │   └── .env               # Environment variables

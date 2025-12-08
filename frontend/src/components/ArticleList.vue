@@ -6,8 +6,12 @@
     <div v-else-if="articles.length === 0" class="empty">No articles found. Create your first article!</div>
     <div v-else>
       <div v-for="article in articles" :key="article.id" 
-           class="article-item" @click="$emit('view-article', article.id)">
+           class="article-item" @click="viewArticle(article.id)">
         <h3>{{ article.title }}</h3>
+        <div class="article-meta">
+          <span v-if="article.Workspace" class="workspace">in {{ article.Workspace.name }}</span>
+          <span v-else class="workspace uncategorized">Uncategorized</span>
+        </div>
       </div>
     </div>
   </div>
@@ -19,6 +23,12 @@ import { API_BASE_URL } from '../constants.js';
 
 export default {
   name: 'ArticleList',
+  props: {
+    workspaceId: {
+      type: String,
+      default: null
+    }
+  },
   data() {
     return {
       articles: [],
@@ -29,19 +39,34 @@ export default {
   async mounted() {
     await this.loadArticles();
   },
+  watch: {
+    workspaceId() {
+      this.loadArticles();
+    }
+  },
   methods: {
     async loadArticles() {
       this.loading = true;
       this.error = null;
       
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/articles`);
+        let params = {};
+        if (this.workspaceId && this.workspaceId !== 'uncategorized') {
+          params.workspace_id = this.workspaceId;
+        } else if (this.workspaceId === 'uncategorized') {
+          params.workspace_id = 'null';
+        }
+        
+        const response = await axios.get(`${API_BASE_URL}/api/articles`, { params });
         this.articles = response.data;
       } catch (error) {
         this.error = 'Failed to load articles. Please check if the server is running.';
       } finally {
         this.loading = false;
       }
+    },
+    viewArticle(id) {
+      this.$emit('view-article', id);
     }
   }
 }
@@ -56,12 +81,32 @@ export default {
 }
 
 .article-item:hover {
-  background: #f8f9fa;
+  background: #e9ecef;
 }
 
 .article-item h3 {
-  margin: 0;
+  margin: 0 0 8px 0;
   color: #333;
+}
+
+.article-meta {
+  font-size: 14px;
+  color: #6c757d;
+  display: flex;
+  gap: 15px;
+}
+
+.author {
+  font-style: italic;
+}
+
+.workspace {
+  font-style: normal;
+}
+
+.workspace.uncategorized {
+  color: #6c757d;
+  font-style: normal;
 }
 
 .loading, .error, .empty {

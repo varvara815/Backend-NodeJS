@@ -1,8 +1,10 @@
+// Database connection configuration
 import { Sequelize } from 'sequelize';
 import dotenv from 'dotenv';
 
 dotenv.config();
 
+// Validate required environment variables
 const requiredEnvVars = ['DB_NAME', 'DB_USER', 'DB_PASSWORD', 'DB_HOST'];
 requiredEnvVars.forEach(envVar => {
   if (!process.env[envVar]) {

@@ -1,3 +1,4 @@
+// Sequelize CLI configuration for migrations
 require('dotenv').config();
 
 module.exports = {

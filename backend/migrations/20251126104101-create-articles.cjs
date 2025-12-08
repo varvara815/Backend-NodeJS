@@ -21,6 +21,10 @@ module.exports = {
         type: Sequelize.JSON,
         defaultValue: []
       },
+      workspace_id: {
+        type: Sequelize.UUID,
+        allowNull: true
+      },
       createdAt: {
         type: Sequelize.DATE,
         allowNull: false,

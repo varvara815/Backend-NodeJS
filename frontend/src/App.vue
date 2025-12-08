@@ -11,12 +11,22 @@
           Create Article
         </button>
       </nav>
+      <div class="workspace-selector" v-if="workspaces.length > 0">
+        <label>Workspace:</label>
+        <select v-model="selectedWorkspace" @change="selectWorkspace(selectedWorkspace)">
+          <option value="">All Workspaces</option>
+          <option v-for="workspace in workspaces" :key="workspace.id" :value="workspace.id">
+            {{ workspace.name }}
+          </option>
+          <option value="uncategorized">Uncategorized</option>
+        </select>
+      </div>
     </header>
 
     <main>
-      <ArticleList v-if="currentView === 'list'" @view-article="viewArticle" />
-      <CreateArticle v-if="currentView === 'create'" @article-created="onArticleCreated" />
-      <ViewArticle v-if="currentView === 'view'" :article-id="selectedArticleId" @back="currentView = 'list'" ref="viewArticle" />
+      <ArticleList v-if="currentView === 'list'" @view-article="viewArticle" :workspace-id="selectedWorkspace" ref="articleList" />
+      <CreateArticle v-if="currentView === 'create'" @article-created="onArticleCreated" :workspaces="workspaces" :selected-workspace="selectedWorkspace" />
+      <ViewArticle v-if="currentView === 'view'" :article-id="selectedArticleId" @back="currentView = 'list'" @article-deleted="onArticleDeleted" ref="viewArticle" />
     </main>
   </div>
 </template>
@@ -43,11 +53,14 @@ export default {
       currentView: 'list',
       selectedArticleId: null,
       notification: null,
-      ws: null
+      ws: null,
+      workspaces: [],
+      selectedWorkspace: ''
     }
   },
   mounted() {
     this.connectWebSocket();
+    this.loadWorkspaces();
     this.restoreStateFromURL();
     window.addEventListener('popstate', this.handlePopState);
   },
@@ -61,6 +74,7 @@ export default {
       this.ws.onmessage = (event) => {
         const data = JSON.parse(event.data);
         
+        // Don't show notification if user is currently editing this article
         const isEditingThisArticle = this.currentView === 'view' && 
                                     this.selectedArticleId === data.articleId && 
                                     this.$refs.viewArticle?.editing;
@@ -69,10 +83,9 @@ export default {
           this.showNotification(`Article "${data.title}" was updated`);
         } else if (data.type === 'attachment-added' && !isEditingThisArticle) {
           this.showNotification(`Article "${data.title}" was updated`);
-        } else if (data.type === 'attachment-deleted' && !isEditingThisArticle) {
-          this.showNotification(`Article "${data.title}" was updated`);
         }
       };
+      // Auto-reconnect on connection loss
       this.ws.onclose = () => {
         setTimeout(() => this.connectWebSocket(), 3000);
       };
@@ -130,8 +143,29 @@ export default {
     },
     handlePopState() {
       this.restoreStateFromURL();
+    },
+    async loadWorkspaces() {
+      try {
+        const response = await fetch('http://localhost:3001/api/workspaces');
+        this.workspaces = await response.json();
+      } catch (error) {
+        console.error('Error loading workspaces:', error);
+      }
+    },
+    selectWorkspace(workspaceId) {
+      this.selectedWorkspace = workspaceId;
+    },
+    onArticleDeleted() {
+      this.currentView = 'list';
+      this.selectedArticleId = null;
+      this.updateURL();
+      this.$nextTick(() => {
+        const articleListComponent = this.$refs.articleList;
+        if (articleListComponent && articleListComponent.loadArticles) {
+          articleListComponent.loadArticles();
+        }
+      });
     }
-    
   }
 }
 </script>
@@ -168,22 +202,44 @@ header h1 {
 }
 
 nav button {
-  background: #007bff;
+  background: #3574b8;
   color: white;
   border: none;
-  padding: 10px 20px;
+  padding: 12px 28px;
   margin-right: 10px;
   border-radius: 4px;
   cursor: pointer;
   transition: background-color 0.3s;
+  font-size: 16px;
 }
 
 nav button:hover {
-  background: #0056b3;
+  background: #2a5fa0;
 }
 
 nav button.active {
-  background: #28a745;
+  background: #2c9e65;
+}
+
+.workspace-selector {
+  margin-top: 15px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.workspace-selector label {
+  font-weight: bold;
+  color: #333;
+}
+
+.workspace-selector select {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  background: #f8f9fa;
+  font-size: 14px;
+  outline: none;
 }
 
 main {
@@ -197,7 +253,7 @@ main {
   position: fixed;
   top: 20px;
   right: 20px;
-  background: #28a745;
+  background: #2c9e65;
   color: white;
   padding: 15px 20px;
   border-radius: 4px;

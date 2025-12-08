@@ -5,9 +5,19 @@
     <div v-if="success" class="success">{{ success }}</div>
     <form @submit.prevent="createArticle">
       <div>
+        <label for="workspace">Workspace:</label>
+        <select id="workspace" v-model="workspaceId" class="large-select">
+          <option value="null">No workspace</option>
+          <option v-for="workspace in workspaces" :key="workspace.id" :value="workspace.id">
+            {{ workspace.name }}
+          </option>
+        </select>
+      </div>
+      <div>
         <label for="title">Title:</label>
         <input type="text" id="title" v-model="title" required>
       </div>
+
       <div>
         <label>Content:</label>
         <QuillEditor
@@ -49,6 +59,16 @@ export default {
   components: {
     QuillEditor
   },
+  props: {
+    workspaces: {
+      type: Array,
+      default: () => []
+    },
+    selectedWorkspace: {
+      type: String,
+      default: null
+    }
+  },
   data() {
     return {
       title: '',
@@ -58,10 +78,13 @@ export default {
       success: null,
       editorOptions: EDITOR_OPTIONS,
       selectedFiles: [],
-      fileError: null
+      fileError: null,
+      workspaceId: this.selectedWorkspace || 'null' // Default to No workspace
     }
   },
+
   methods: {
+
     handleFileSelect(event) {
       const files = Array.from(event.target.files);
       this.fileError = null;
@@ -72,9 +95,10 @@ export default {
       const validFiles = [];
       const invalidFiles = [];
       
+      // Validate each file by type, extension, and size
       files.forEach(file => {
         if (allowedTypes.includes(file.type) && allowedExts.test(file.name)) {
-          if (file.size <= 10 * 1024 * 1024) { // 10MB limit
+          if (file.size <= 10 * 1024 * 1024) {
             validFiles.push(file);
           } else {
             invalidFiles.push(`${file.name} (too large, max 10MB)`);
@@ -90,7 +114,6 @@ export default {
       
       this.selectedFiles = [...this.selectedFiles, ...validFiles];
       
-      // Reset input to allow selecting the same file again
       if (this.$refs.fileInput) {
         this.$refs.fileInput.value = '';
       }
@@ -106,12 +129,12 @@ export default {
       try {
         const response = await axios.post(`${API_BASE_URL}/api/articles`, {
           title: this.title,
-          content: this.content
+          content: this.content,
+          workspace_id: this.workspaceId === 'null' ? null : this.workspaceId || null
         });
         
         const articleId = response.data.id;
         
-        // Upload files if any are selected
         if (this.selectedFiles.length > 0) {
           for (const file of this.selectedFiles) {
             const formData = new FormData();
@@ -142,6 +165,7 @@ export default {
 <style scoped>
 form {
   max-width: 800px;
+  margin-top: 30px;
 }
 
 form div {
@@ -154,12 +178,22 @@ label {
   font-weight: bold;
 }
 
-input {
+input, select {
   width: 100%;
   padding: 10px;
   border: 1px solid #ddd;
   border-radius: 4px;
   font-size: 16px;
+  outline: none;
+}
+
+select {
+  background: #f8f9fa;
+}
+
+.large-select {
+  width: 300px;
+  max-width: 100%;
 }
 
 .ql-editor {
@@ -167,10 +201,10 @@ input {
 }
 
 button {
-  background: #007bff;
+  background: #3574b8;
   color: white;
   border: none;
-  padding: 12px 24px;
+  padding: 12px 36px;
   border-radius: 4px;
   cursor: pointer;
   font-size: 16px;
@@ -178,7 +212,7 @@ button {
 }
 
 button:hover:not(:disabled) {
-  background: #0056b3;
+  background: #2a5fa0;
 }
 
 button:disabled {
@@ -230,7 +264,7 @@ button:disabled {
 }
 
 .remove-file {
-  background: #dc3545;
+  background: #ba3434;
   color: white;
   border: none;
   width: 20px;
@@ -244,7 +278,7 @@ button:disabled {
 }
 
 .remove-file:hover {
-  background: #c82333;
+  background: #a02d2d;
 }
 
 .file-input-wrapper {
@@ -259,7 +293,7 @@ button:disabled {
 }
 
 .file-input-button {
-  background: #007bff;
+  background: #3574b8;
   color: white;
   border: none;
   padding: 8px 16px;
@@ -270,7 +304,7 @@ button:disabled {
 }
 
 .file-input-button:hover {
-  background: #0056b3;
+  background: #2a5fa0;
 }
 
 .file-name {
@@ -290,5 +324,14 @@ button:disabled {
   border-radius: 4px;
   margin-top: 10px;
   font-size: 14px;
+}
+
+select option:hover {
+  background-color: #e9ecef !important;
+}
+
+select:focus {
+  border-color: #ddd;
+  outline: none;
 }
 </style>

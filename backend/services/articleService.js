@@ -1,34 +1,43 @@
-import { Article, Comment, Workspace } from '../models/index.js';
+import {
+  Article,
+  Comment,
+  Workspace,
+} from '../models/index.js';
 import { validateArticle } from '../validators.js';
-import { DEFAULT_PAGE_SIZE, MAX_COMMENTS_PER_ARTICLE } from '../constants.js';
+import {
+  DEFAULT_PAGE_SIZE,
+  MAX_COMMENTS_PER_ARTICLE,
+  FILE_SIZE_LIMIT,
+} from '../constants.js';
 import { fileService } from './fileService.js';
 import sequelize from '../config/database.js';
 import path from 'path';
 import fs from 'fs/promises';
 import { UPLOADS_DIR } from '../constants.js';
+import { articleVersionService } from './articleVersionService.js';
 
 export const articleService = {
   // Get articles with filtering and pagination
   async getArticles(query) {
     const { workspace_id, page = 1, limit = DEFAULT_PAGE_SIZE } = query;
     let whereClause = {};
-    
+
     if (workspace_id === 'null') {
       whereClause = { workspace_id: null };
     } else if (workspace_id) {
       whereClause = { workspace_id };
     }
-    
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
-    
+
     return await Article.findAll({
       where: whereClause,
       include: [
-        { model: Workspace, as: 'Workspace', attributes: ['id', 'name'] }
+        { model: Workspace, as: 'Workspace', attributes: ['id', 'name'] },
       ],
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
-      offset: offset
+      offset: offset,
     });
   },
 
@@ -37,14 +46,14 @@ export const articleService = {
     return await Article.findByPk(id, {
       include: [
         { model: Workspace, as: 'Workspace', attributes: ['id', 'name'] },
-        { 
-          model: Comment, 
+        {
+          model: Comment,
           as: 'Comments',
           separate: true,
           limit: MAX_COMMENTS_PER_ARTICLE,
-          order: [['createdAt', 'DESC']]
-        }
-      ]
+          order: [['createdAt', 'DESC']],
+        },
+      ],
     });
   },
 
@@ -63,14 +72,29 @@ export const articleService = {
       }
     }
 
-    return await Article.create({
-      title: title.trim(),
-      content: content.trim(),
-      workspace_id
-    });
+    const transaction = await sequelize.transaction();
+    try {
+      const article = await Article.create(
+        {
+          title: title.trim(),
+          content: content.trim(),
+          workspace_id,
+        },
+        { transaction }
+      );
+
+      // Create initial version
+      await articleVersionService.createNewVersion(article, transaction, 1);
+
+      await transaction.commit();
+      return article;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   },
 
-  // Update existing article
+  // Update existing article with versioning
   async updateArticle(id, data) {
     const { title, content, workspace_id } = data;
     const errors = validateArticle(title, content);
@@ -90,13 +114,28 @@ export const articleService = {
       throw new Error('Article not found');
     }
 
-    await article.update({
-      title: title.trim(),
-      content: content.trim(),
-      workspace_id: workspace_id === '' ? null : workspace_id
-    });
+    const transaction = await sequelize.transaction();
+    try {
+      // Update current article
+      await article.update(
+        {
+          title: title.trim(),
+          content: content.trim(),
+          workspace_id: workspace_id === '' ? null : workspace_id,
+        },
+        { transaction }
+      );
 
-    return article;
+      // Get fresh article data and create version
+      const updatedArticle = await Article.findByPk(id, { transaction });
+      await articleVersionService.createNewVersion(updatedArticle, transaction);
+
+      await transaction.commit();
+      return article;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   },
 
   // Add file attachment to article
@@ -105,20 +144,43 @@ export const articleService = {
     if (!article) {
       throw new Error('Article not found');
     }
-    
+
     if (!file) {
       throw new Error('Invalid file type. Only JPG, PNG, GIF, and PDF allowed');
     }
-    
+
+    if (file.size > FILE_SIZE_LIMIT) {
+      throw new Error('File size exceeds 10MB limit');
+    }
+
     const originalName = fileService.fixEncoding(file.originalname);
-    const attachment = { filename: file.filename, originalName, size: file.size };
+    const attachment = {
+      filename: file.filename,
+      originalName,
+      size: file.size,
+    };
     const currentAttachments = article.attachments || [];
-    
-    await article.update({
-      attachments: [...currentAttachments, attachment]
-    });
-    
-    return attachment;
+
+    const transaction = await sequelize.transaction();
+    try {
+      const updatedAttachments = [...currentAttachments, attachment];
+      await article.update(
+        {
+          attachments: updatedAttachments,
+        },
+        { transaction }
+      );
+
+      // Get fresh article data and create new version
+      const updatedArticle = await Article.findByPk(articleId, { transaction });
+      await articleVersionService.createNewVersion(updatedArticle, transaction);
+
+      await transaction.commit();
+      return attachment;
+    } catch (error) {
+      await transaction.rollback();
+      throw error;
+    }
   },
 
   // Delete file attachment from article
@@ -127,23 +189,34 @@ export const articleService = {
     if (!article) {
       throw new Error('Article not found');
     }
-    
+
     const currentAttachments = article.attachments || [];
-    const attachment = currentAttachments.find(a => a.filename === filename);
-    
+    const attachment = currentAttachments.find((a) => a.filename === filename);
+
     if (!attachment) {
       throw new Error('Attachment not found');
     }
-    
-    if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+
+    const resolvedPath = path.resolve(UPLOADS_DIR, filename);
+    if (!resolvedPath.startsWith(path.resolve(UPLOADS_DIR))) {
       throw new Error('Invalid filename');
     }
-    
-    const updatedAttachments = currentAttachments.filter(a => a.filename !== filename);
-    
+
+    const updatedAttachments = currentAttachments.filter(
+      (a) => a.filename !== filename
+    );
+
     const transaction = await sequelize.transaction();
     try {
-      await article.update({ attachments: updatedAttachments }, { transaction });
+      await article.update(
+        { attachments: updatedAttachments },
+        { transaction }
+      );
+
+      // Get fresh article data and create new version
+      const updatedArticle = await Article.findByPk(articleId, { transaction });
+      await articleVersionService.createNewVersion(updatedArticle, transaction);
+
       await fs.unlink(path.join(UPLOADS_DIR, filename));
       await transaction.commit();
     } catch (error) {
@@ -162,15 +235,19 @@ export const articleService = {
     const attachments = article.attachments || [];
     for (const attachment of attachments) {
       try {
-        if (!attachment.filename.includes('..') && !attachment.filename.includes('/') && !attachment.filename.includes('\\')) {
-          await fs.unlink(path.join(UPLOADS_DIR, attachment.filename));
+        const resolvedPath = path.resolve(UPLOADS_DIR, attachment.filename);
+        if (resolvedPath.startsWith(path.resolve(UPLOADS_DIR))) {
+          await fs.unlink(resolvedPath);
         }
       } catch (error) {
-        console.error(`Failed to delete file ${attachment.filename}:`, error.message);
+        console.error(
+          `Failed to delete file ${attachment.filename}:`,
+          error.message
+        );
       }
     }
 
     await article.destroy();
     return article;
-  }
+  },
 };

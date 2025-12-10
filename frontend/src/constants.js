@@ -10,3 +10,8 @@ export const EDITOR_OPTIONS = {
     ]
   }
 };
+
+// File upload constants
+export const FILE_SIZE_LIMIT = 10 * 1024 * 1024; // 10MB
+export const ALLOWED_FILE_TYPES = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
+export const ALLOWED_FILE_EXTENSIONS = /\.(jpg|jpeg|png|gif|pdf)$/i;

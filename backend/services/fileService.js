@@ -63,12 +63,12 @@ export const ensureUploadsDir = async (req, res, next) => {
 };
 
 export const deleteFile = async (filename) => {
-
-  if (filename.includes('..') || filename.includes('/') || filename.includes('\\')) {
+  const resolvedPath = path.resolve(UPLOADS_DIR, filename);
+  if (!resolvedPath.startsWith(path.resolve(UPLOADS_DIR))) {
     throw new Error('Invalid filename');
   }
   
-  await fs.unlink(path.join(UPLOADS_DIR, filename));
+  await fs.unlink(resolvedPath);
 };
 
 export const fileService = {

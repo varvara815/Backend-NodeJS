@@ -1,4 +1,6 @@
 import { ArticleVersion, Workspace } from '../models/index.js';
+import { Comment } from '../models/index.js';
+import { MAX_COMMENTS_PER_ARTICLE } from '../constants.js';
 
 async function getNextVersionNumber(articleId, transaction) {
   const latestVersion = await ArticleVersion.findOne({
@@ -54,6 +56,27 @@ export const articleVersionService = {
     if (!version) {
       throw new Error('Article version not found');
     }
-    return version;
+
+    // Load comments for the article (comments are shared across versions)
+    const comments = await Comment.findAll({
+      where: { article_id: articleId },
+      order: [['createdAt', 'DESC']],
+      limit: MAX_COMMENTS_PER_ARTICLE,
+    });
+
+    return { ...version.toJSON(), Comments: comments };
+  },
+
+  async isFileUsedInVersions(articleId, filename, transaction) {
+    const versions = await ArticleVersion.findAll({
+      where: { article_id: articleId },
+      attributes: ['attachments'],
+      transaction
+    });
+
+    return versions.some(version => {
+      const attachments = version.attachments || [];
+      return attachments.some(att => att.filename === filename);
+    });
   },
 };

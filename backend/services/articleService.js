@@ -208,6 +208,9 @@ export const articleService = {
 
     const transaction = await sequelize.transaction();
     try {
+      // Check if file is used in other versions BEFORE creating new version
+      const isUsedInOtherVersions = await articleVersionService.isFileUsedInVersions(articleId, filename, transaction);
+      
       await article.update(
         { attachments: updatedAttachments },
         { transaction }
@@ -216,9 +219,12 @@ export const articleService = {
       // Get fresh article data and create new version
       const updatedArticle = await Article.findByPk(articleId, { transaction });
       await articleVersionService.createNewVersion(updatedArticle, transaction);
-
-      await fs.unlink(path.join(UPLOADS_DIR, filename));
+      
       await transaction.commit();
+      
+      if (!isUsedInOtherVersions) {
+        await fs.unlink(path.join(UPLOADS_DIR, filename));
+      }
     } catch (error) {
       await transaction.rollback();
       throw error;

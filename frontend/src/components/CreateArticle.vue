@@ -52,7 +52,7 @@
 import axios from 'axios';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { API_BASE_URL, EDITOR_OPTIONS } from '../constants.js';
+import { API_BASE_URL, EDITOR_OPTIONS, FILE_SIZE_LIMIT, ALLOWED_FILE_TYPES, ALLOWED_FILE_EXTENSIONS } from '../constants.js';
 
 export default {
   name: 'CreateArticle',
@@ -89,8 +89,8 @@ export default {
       const files = Array.from(event.target.files);
       this.fileError = null;
       
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
-      const allowedExts = /\.(jpg|jpeg|png|gif|pdf)$/i;
+      const allowedTypes = ALLOWED_FILE_TYPES;
+      const allowedExts = ALLOWED_FILE_EXTENSIONS;
       
       const validFiles = [];
       const invalidFiles = [];
@@ -98,7 +98,7 @@ export default {
       // Validate each file by type, extension, and size
       files.forEach(file => {
         if (allowedTypes.includes(file.type) && allowedExts.test(file.name)) {
-          if (file.size <= 10 * 1024 * 1024) {
+          if (file.size <= FILE_SIZE_LIMIT) {
             validFiles.push(file);
           } else {
             invalidFiles.push(`${file.name} (too large, max 10MB)`);

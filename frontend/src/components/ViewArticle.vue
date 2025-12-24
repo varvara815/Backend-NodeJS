@@ -7,13 +7,47 @@
       <span>A new version of this article is available.</span>
       <button @click="reloadArticle" class="btn-reload">Reload</button>
     </div>
+    <!-- Version indicator -->
+    <div v-if="isViewingVersion" class="version-banner">
+      <div class="version-info">
+        <span class="version-text">Viewing version {{ currentVersion }} (read-only)</span>
+        <button @click="viewCurrentVersion" class="btn btn-sm btn-outline">View Current Version</button>
+      </div>
+    </div>
+    
     <div class="button-group">
-      <button @click="goBack" class="btn-back">← Back</button>
-      <div v-if="article && !editing">
+      <div class="left-buttons">
+        <button @click="goBack" class="btn-back">← Back</button>
+        <button v-if="article && !editing" @click="showVersions = !showVersions" class="btn-versions">
+          {{ showVersions ? 'Hide' : 'Show' }} Versions
+        </button>
+      </div>
+      <div v-if="article && !editing && !isViewingVersion" class="action-buttons">
         <button @click="startEdit" class="btn-edit">Edit</button>
         <button @click="deleteArticle" class="btn-delete">Delete</button>
       </div>
     </div>
+    <!-- Versions list -->
+    <div v-if="showVersions && !editing" class="versions-section">
+      <h3>Article Versions</h3>
+      <div v-if="loadingVersions" class="loading">Loading versions...</div>
+      <div v-else-if="versions.length === 0" class="no-versions">No versions available</div>
+      <div v-else class="versions-list">
+        <div 
+          v-for="version in versions" 
+          :key="version.id"
+          :class="['version-item', { active: currentVersion === version.version_number }]"
+          @click="viewVersion(version.version_number)"
+        >
+          <div class="version-header">
+            <span class="version-number">Version {{ version.version_number }}</span>
+            <span class="version-date"> {{ formatDate(version.createdAt) }}</span>
+          </div>
+          <div class="version-title">{{ version.title }}</div>
+        </div>
+      </div>
+    </div>
+    
     <div v-if="loading" class="loading">Loading...</div>
     <div v-else-if="article">
       <div v-if="!editing">
@@ -63,6 +97,7 @@ import ArticleEditor from './ArticleEditor.vue';
 import CommentsSection from './CommentsSection.vue';
 import { API_BASE_URL } from '../constants.js';
 
+
 export default {
   name: 'ViewArticle',
   components: { ArticleEditor, CommentsSection },
@@ -75,7 +110,12 @@ export default {
       editing: false,
       successMessage: null,
       workspaces: [],
-      hasNewVersion: false
+      hasNewVersion: false,
+      versions: [],
+      showVersions: false,
+      loadingVersions: false,
+      currentVersion: null,
+      isViewingVersion: false
     }
   },
   computed: {
@@ -99,6 +139,7 @@ export default {
   mounted() {
     this.loadWorkspaces();
     this.setupWebSocketListener();
+    this.fetchVersions();
   },
   beforeUnmount() {
     if (this.wsMessageHandler) {
@@ -117,11 +158,61 @@ export default {
       try {
         const response = await axios.get(`${API_BASE_URL}/api/articles/${id}`);
         this.article = response.data;
+        this.fetchVersions();
       } catch (error) {
         this.error = error.response?.status === 404 ? 'Article not found' : 'Failed to load article';
       } finally {
         this.loading = false;
       }
+    },
+    
+    async fetchVersions() {
+      if (!this.articleId) return;
+      try {
+        this.loadingVersions = true;
+        const response = await axios.get(`${API_BASE_URL}/api/articles/${this.articleId}/versions`);
+        this.versions = response.data;
+        // By default, select the latest version if not viewing a specific version
+        if (!this.isViewingVersion && this.versions.length > 0) {
+          this.currentVersion = this.versions[0].version_number;
+        }
+      } catch (error) {
+        console.error('Failed to fetch versions:', error);
+      } finally {
+        this.loadingVersions = false;
+      }
+    },
+    
+    async viewVersion(versionNumber) {
+      // If this is the latest version, show the current article
+      const latestVersion = this.versions.length > 0 ? this.versions[0].version_number : 1;
+      if (versionNumber === latestVersion) {
+        this.viewCurrentVersion();
+        return;
+      }
+      
+      try {
+        this.loading = true;
+        const response = await axios.get(`${API_BASE_URL}/api/articles/${this.articleId}/versions/${versionNumber}`);
+        this.article = response.data;
+        this.currentVersion = versionNumber;
+        this.isViewingVersion = true;
+      } catch (error) {
+        this.error = error.message;
+      } finally {
+        this.loading = false;
+      }
+    },
+    
+    async viewCurrentVersion() {
+      this.isViewingVersion = false;
+      const latestVersion = this.versions.length > 0 ? this.versions[0].version_number : 1;
+      this.currentVersion = latestVersion;
+      await this.loadArticle(this.articleId);
+    },
+    
+    formatDate(dateString) {
+      return new Date(dateString).toLocaleString();
     },
     async loadWorkspaces() {
       try {
@@ -157,6 +248,7 @@ export default {
     handleSave() {
       this.editing = false;
       this.loadArticle(this.articleId);
+      this.fetchVersions();
     },
     showSuccessMessage(message) {
       this.successMessage = message;
@@ -180,6 +272,7 @@ export default {
     reloadArticle() {
       this.hasNewVersion = false;
       this.loadArticle(this.articleId);
+      this.fetchVersions();
     }
   }
 }
@@ -230,6 +323,11 @@ export default {
   margin-bottom: 20px;
 }
 
+.left-buttons {
+  display: flex;
+  gap: 8px;
+}
+
 button {
   color: white;
   border: none;
@@ -262,6 +360,15 @@ button {
 
 .btn-delete:hover {
   background: #a02d2d;
+}
+
+.btn-versions {
+  background: #17a2b8;
+  font-size: 14px;
+}
+
+.btn-versions:hover {
+  background: #138496;
 }
 
 h2 {
@@ -370,6 +477,117 @@ h2 {
 
 .attachment-item a:hover {
   text-decoration: underline;
+}
+
+.version-banner {
+  background: #e3f2fd;
+  border: 1px solid #90caf9;
+  border-radius: 4px;
+  padding: 12px 16px;
+  margin-bottom: 15px;
+}
+
+.version-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.version-text {
+  color: #1976d2;
+  font-weight: 500;
+}
+
+.btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.btn-sm {
+  padding: 8px 16px;
+  font-size: 14px;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid #1976d2;
+  color: #1976d2;
+}
+
+.btn-outline:hover {
+  background: #1976d2;
+  color: white;
+}
+
+.versions-section {
+  background: #f8f9fa;
+  border-radius: 4px;
+  padding: 15px;
+  margin-bottom: 20px;
+}
+
+.versions-section h3 {
+  margin: 0 0 15px 0;
+  color: #333;
+  font-size: 18px;
+}
+
+.versions-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.version-item {
+  background: white;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 12px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.version-item:hover {
+  border-color: #007bff;
+  box-shadow: 0 2px 4px rgba(0,123,255,0.1);
+}
+
+.version-item.active {
+  border-color: #007bff;
+  background: #e3f2fd;
+}
+
+.version-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+
+.version-number {
+  font-weight: bold;
+  color: #333;
+}
+
+.version-date {
+  color: #6c757d;
+  font-size: 14px;
+}
+
+.version-title {
+  color: #555;
+  font-size: 14px;
+  margin-top: 4px;
+}
+
+.no-versions {
+  text-align: center;
+  color: #6c757d;
+  padding: 20px;
+  font-style: italic;
 }
 
 </style>

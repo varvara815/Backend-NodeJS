@@ -1,6 +1,7 @@
 import express from 'express';
 
 import { articleService } from '../services/articleService.js';
+import { articleVersionService } from '../services/articleVersionService.js';
 import { fileService } from '../services/fileService.js';
 import { websocketService } from '../services/websocketService.js';
 
@@ -151,6 +152,43 @@ router.post('/:id/notify-update', async (req, res) => {
       error.message
     );
     res.status(500).json({ error: 'Error sending notification' });
+  }
+});
+
+// GET /api/articles/:id/versions - Get all versions of an article
+router.get('/:id/versions', async (req, res) => {
+  try {
+    const versions = await articleVersionService.getArticleVersions(req.params.id);
+    res.json(versions);
+  } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    console.error(
+      `[ERROR] ${new Date().toISOString()}: Error fetching article versions:`,
+      error.message
+    );
+    res.status(500).json({ error: 'Error fetching article versions' });
+  }
+});
+
+// GET /api/articles/:id/versions/:version - Get specific version of an article
+router.get('/:id/versions/:version', async (req, res) => {
+  try {
+    const version = await articleVersionService.getArticleVersion(
+      req.params.id,
+      parseInt(req.params.version)
+    );
+    res.json(version);
+  } catch (error) {
+    if (error.message.includes('not found')) {
+      return res.status(404).json({ error: error.message });
+    }
+    console.error(
+      `[ERROR] ${new Date().toISOString()}: Error fetching article version:`,
+      error.message
+    );
+    res.status(500).json({ error: 'Error fetching article version' });
   }
 });
 

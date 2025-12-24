@@ -1,6 +1,9 @@
 <template>
   <div class="edit-form">
     <h2>Edit Article</h2>
+    <div class="version-notice">
+      <strong>Note:</strong> Editing this article will create a new version. Previous versions will remain accessible.
+    </div>
     <div class="workspace-field">
       <label for="edit-workspace">Workspace:</label>
       <select id="edit-workspace" v-model="editForm.workspace_id" class="workspace-select">
@@ -72,7 +75,7 @@
 import axios from 'axios';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { API_BASE_URL, EDITOR_OPTIONS } from '../constants.js';
+import { API_BASE_URL, EDITOR_OPTIONS, FILE_SIZE_LIMIT, ALLOWED_FILE_TYPES, ALLOWED_FILE_EXTENSIONS } from '../constants.js';
 
 export default {
   name: 'ArticleEditor',
@@ -126,8 +129,8 @@ export default {
       
       if (!file) return;
       
-      const allowedTypes = ['image/jpeg', 'image/png', 'image/gif', 'application/pdf'];
-      const allowedExts = /\.(jpg|jpeg|png|gif|pdf)$/i;
+      const allowedTypes = ALLOWED_FILE_TYPES;
+      const allowedExts = ALLOWED_FILE_EXTENSIONS;
       
       if (!allowedTypes.includes(file.type) || !allowedExts.test(file.name)) {
         this.fileError = `Invalid file type. Only JPG, PNG, GIF, and PDF files are allowed.`;
@@ -135,7 +138,7 @@ export default {
         return;
       }
       
-      if (file.size > 10 * 1024 * 1024) {
+      if (file.size > FILE_SIZE_LIMIT) {
         this.fileError = `File too large. Maximum size is 10MB.`;
         this.$refs.fileInput.value = '';
         return;
@@ -164,7 +167,7 @@ export default {
       this.saving = true;
       
       try {
-        const currentWorkspaceId = this.article.workspace_id || '';
+        const currentWorkspaceId = this.article.workspace_id || this.article.Workspace?.id || '';
         const newWorkspaceId = this.editForm.workspace_id || '';
         
         const hasTextChanges = this.editForm.title.trim() !== this.article.title || 
@@ -526,5 +529,14 @@ button {
   padding: 10px;
   border-radius: 4px;
   margin-top: 10px;
+}
+
+.version-notice {
+  background: #d1ecf1;
+  color: #0c5460;
+  padding: 12px;
+  border-radius: 4px;
+  margin-bottom: 20px;
+  border-left: 4px solid #17a2b8;
 }
 </style>

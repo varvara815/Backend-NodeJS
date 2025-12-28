@@ -14,10 +14,13 @@
     <div v-if="comments.length > 0" class="comments-list">
       <div v-for="comment in comments" :key="comment.id" class="comment-item">
         <div class="comment-header">
-          <span class="comment-date">{{ formatDate(comment.createdAt) }}</span>
+          <div class="comment-meta">
+            <span class="comment-author">{{ comment.User?.email || 'Unknown' }}</span>
+            <span class="comment-date">{{ formatDate(comment.createdAt) }}</span>
+          </div>
           <div class="comment-actions">
-            <button type="button" @click="startEditComment(comment)" class="btn-edit-comment" v-if="editingCommentId !== comment.id">✎</button>
-            <button type="button" @click="handleDeleteComment(comment.id)" class="btn-delete-comment">×</button>
+            <button type="button" @click="startEditComment(comment)" class="btn-edit-comment" v-if="editingCommentId !== comment.id && canEditComment(comment)">✎</button>
+            <button type="button" @click="handleDeleteComment(comment.id)" class="btn-delete-comment" v-if="canEditComment(comment)">×</button>
           </div>
         </div>
         <div v-if="editingCommentId === comment.id" class="edit-comment">
@@ -40,9 +43,9 @@
 </template>
 
 <script>
-import axios from 'axios';
+import api from '../api';
+import { authAPI } from '../api/auth.js';
 import DOMPurify from 'dompurify';
-import { API_BASE_URL } from '../constants.js';
 
 export default {
   name: 'CommentsSection',
@@ -73,7 +76,7 @@ export default {
       this.addingComment = true;
       this.error = null;
       try {
-        await axios.post(`${API_BASE_URL}/api/articles/${this.articleId}/comments`, {
+        await api.post(`/articles/${this.articleId}/comments`, {
           content: this.newComment.trim()
         });
         
@@ -91,7 +94,7 @@ export default {
       
       this.error = null;
       try {
-        await axios.delete(`${API_BASE_URL}/api/comments/${commentId}`);
+        await api.delete(`/comments/${commentId}`);
         this.$emit('comment-deleted');
         this.$emit('show-success', 'Comment deleted successfully');
       } catch (error) {
@@ -116,7 +119,7 @@ export default {
       
       this.error = null;
       try {
-        await axios.put(`${API_BASE_URL}/api/comments/${commentId}`, {
+        await api.put(`/comments/${commentId}`, {
           content: this.editingCommentContent.trim()
         });
         
@@ -138,6 +141,10 @@ export default {
         ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'b', 'i', 'span', 'div'],
         ALLOWED_ATTR: ['style']
       });
+    },
+    canEditComment(comment) {
+      const currentUserEmail = authAPI.getUserEmail();
+      return currentUserEmail && comment.User?.email === currentUserEmail;
     }
   }
 }
@@ -220,6 +227,18 @@ export default {
   margin-bottom: 10px;
   padding-bottom: 8px;
   border-bottom: 1px solid #eee;
+}
+
+.comment-meta {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.comment-author {
+  font-weight: 600;
+  color: #248c58;
+  font-size: 14px;
 }
 
 .comment-actions {

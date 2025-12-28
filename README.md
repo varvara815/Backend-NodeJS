@@ -4,6 +4,14 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 
 ## Features
 
+### Authentication & Security
+- **User registration** with email and password validation
+- **JWT-based authentication** for secure login sessions
+- **Protected routes** - Logic page accessible only with valid JWT
+- **Automatic token validation** and expiration handling
+- **Secure password storage** with bcrypt hashing
+- **Session management** - automatic logout on token expiration
+
 ### Articles Management
 - **Full CRUD operations** for articles (Create, Read, Update, Delete)
 - View list of articles (sorted by creation date)
@@ -117,7 +125,17 @@ The application will be available at:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:3001
 
+**Default login credentials:**
+- Email: `admin@example.com`
+- Password: `password123`
+
 ## API Endpoints
+
+### Authentication
+- `POST /api/auth/register` - Register new user (email, password)
+- `POST /api/auth/login` - Login user (returns JWT token)
+- `POST /api/auth/logout` - Logout user
+- `GET /api/auth/me` - Get current user info (requires JWT)
 
 ### Articles
 - `GET /api/articles` - Get all articles (sorted by creation date, supports ?workspace_id filter)
@@ -161,6 +179,16 @@ The application will be available at:
 
 ## Database Schema
 
+**Users Table:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| email | VARCHAR(255) | User email (unique) |
+| password | VARCHAR(255) | Hashed password |
+| createdAt | TIMESTAMP | Registration timestamp |
+| updatedAt | TIMESTAMP | Last update timestamp |
+
 **Articles Table:**
 
 | Column | Type | Description | Example |
@@ -169,6 +197,7 @@ The application will be available at:
 | title | VARCHAR(200) | Article title | `"My First Article"` |
 | content | TEXT | Article content (HTML) | `"<p>Hello world</p>"` |
 | attachments | JSON | Array of file attachments | `[{"filename":"doc.pdf","originalName":"document.pdf","size":12345}]` |
+| user_id | UUID | Foreign key to users | `39f39454-077e-4dea-9173-b6c226d94341` |
 | workspace_id | UUID | Foreign key to workspaces (nullable) | `39f39454-077e-4dea-9173-b6c226d94341` |
 | createdAt | TIMESTAMP | Creation timestamp | `2025-11-22 13:47:58.519+03` |
 | updatedAt | TIMESTAMP | Last update timestamp | `2025-11-22 13:47:58.519+03` |
@@ -180,6 +209,7 @@ The application will be available at:
 | id | UUID | Primary key |
 | content | TEXT | Comment content |
 | article_id | UUID | Foreign key to articles |
+| user_id | UUID | Foreign key to users |
 | createdAt | TIMESTAMP | Creation timestamp |
 | updatedAt | TIMESTAMP | Last update timestamp |
 
@@ -204,15 +234,17 @@ The application will be available at:
 │   ├── models/
 │   │   ├── Article.js     # Sequelize Article model
 │   │   ├── Comment.js     # Sequelize Comment model
-
+│   │   ├── User.js        # Sequelize User model
 │   │   ├── Workspace.js   # Sequelize Workspace model
 │   │   └── index.js       # Model associations
 │   ├── routes/
 │   │   ├── articles.js    # Article API routes
+│   │   ├── auth.js        # Authentication API routes
 │   │   ├── comments.js    # Comment API routes
 
 │   │   └── workspaces.js  # Workspace API routes
 │   ├── middleware/
+│   │   ├── auth.js          # JWT authentication middleware
 │   │   └── errorHandler.js  # Error handling middleware
 │   ├── services/
 │   │   ├── articleService.js    # Article business logic
@@ -238,8 +270,9 @@ The application will be available at:
 ## Technologies Used
 
 - **Frontend**: Vue.js 3, Quill.js WYSIWYG editor, Axios, Vite, DOMPurify
-- **Backend**: Node.js, Express.js, CORS, Multer, WebSockets
+- **Backend**: Node.js, Express.js, CORS, Multer, WebSockets, JWT, bcrypt
 - **Database**: PostgreSQL with Sequelize ORM
+- **Authentication**: JWT tokens, bcrypt password hashing
 - **Storage**: PostgreSQL database for articles, file system for uploads
 - **Real-time**: WebSocket connections for live notifications
 - **Security**: File type validation

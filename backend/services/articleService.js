@@ -2,6 +2,7 @@ import {
   Article,
   Comment,
   Workspace,
+  User,
 } from '../models/index.js';
 import { validateArticle } from '../validators.js';
 import {
@@ -34,6 +35,7 @@ export const articleService = {
       where: whereClause,
       include: [
         { model: Workspace, as: 'Workspace', attributes: ['id', 'name'] },
+        { model: User, as: 'User', attributes: ['id', 'email'] },
       ],
       order: [['createdAt', 'DESC']],
       limit: parseInt(limit),
@@ -46,9 +48,11 @@ export const articleService = {
     return await Article.findByPk(id, {
       include: [
         { model: Workspace, as: 'Workspace', attributes: ['id', 'name'] },
+        { model: User, as: 'User', attributes: ['id', 'email'] },
         {
           model: Comment,
           as: 'Comments',
+          include: [{ model: User, as: 'User', attributes: ['id', 'email'] }],
           separate: true,
           limit: MAX_COMMENTS_PER_ARTICLE,
           order: [['createdAt', 'DESC']],
@@ -58,7 +62,7 @@ export const articleService = {
   },
 
   // Create new article with validation
-  async createArticle(data) {
+  async createArticle(data, userId) {
     const { title, content, workspace_id } = data;
     const errors = validateArticle(title, content);
     if (errors.length > 0) {
@@ -79,6 +83,7 @@ export const articleService = {
           title: title.trim(),
           content: content.trim(),
           workspace_id,
+          user_id: userId,
         },
         { transaction }
       );
@@ -95,7 +100,7 @@ export const articleService = {
   },
 
   // Update existing article with versioning
-  async updateArticle(id, data) {
+  async updateArticle(id, data, userId) {
     const { title, content, workspace_id } = data;
     const errors = validateArticle(title, content);
     if (errors.length > 0) {
@@ -122,6 +127,7 @@ export const articleService = {
           title: title.trim(),
           content: content.trim(),
           workspace_id: workspace_id === '' ? null : workspace_id,
+          user_id: userId,
         },
         { transaction }
       );

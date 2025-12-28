@@ -1,33 +1,58 @@
 <template>
   <div id="app">
-    <div v-if="notification" class="notification">{{ notification }}</div>
-    <header>
-      <h1>Article Management System</h1>
-      <nav>
-        <button @click="goToList" :class="{ active: currentView === 'list' }">
-          Articles List
-        </button>
-        <button @click="goToCreate" :class="{ active: currentView === 'create' }">
-          Create Article
-        </button>
-      </nav>
-      <div class="workspace-selector" v-if="workspaces.length > 0">
-        <label>Workspace:</label>
-        <select v-model="selectedWorkspace" @change="selectWorkspace(selectedWorkspace)">
-          <option value="">All Workspaces</option>
-          <option v-for="workspace in workspaces" :key="workspace.id" :value="workspace.id">
-            {{ workspace.name }}
-          </option>
-          <option value="uncategorized">Uncategorized</option>
-        </select>
-      </div>
-    </header>
+    <!-- Loading state -->
+    <div v-if="appLoading" class="app-loading">
+      <div class="spinner"></div>
+      <p>Loading...</p>
+    </div>
 
-    <main>
-      <ArticleList v-if="currentView === 'list'" @view-article="viewArticle" :workspace-id="selectedWorkspace" ref="articleList" />
-      <CreateArticle v-if="currentView === 'create'" @article-created="onArticleCreated" :workspaces="workspaces" :selected-workspace="selectedWorkspace" />
-      <ViewArticle v-if="currentView === 'view'" :article-id="selectedArticleId" @back="currentView = 'list'" @article-deleted="onArticleDeleted" ref="viewArticle" />
-    </main>
+    <!-- App content -->
+    <template v-else>
+      <div v-if="notification" class="notification">{{ notification }}</div>
+      
+      <!-- Authentication Views -->
+      <div v-if="!isAuthenticated">
+        <Login v-if="authView === 'login'" @login-success="onLoginSuccess" @switch-to-register="authView = 'register'" />
+        <Register v-if="authView === 'register'" @register-success="authView = 'login'" @switch-to-login="authView = 'login'" />
+      </div>
+
+      <!-- Main Application -->
+      <div v-else>
+      <header>
+        <div class="header-content">
+          <h1>Article Management System</h1>
+          <div class="user-info">
+            <span>Welcome, {{ userEmail }}</span>
+            <button @click="logout" class="logout-btn">Logout</button>
+          </div>
+        </div>
+        <nav>
+          <button @click="goToList" :class="{ active: currentView === 'list' }">
+            Articles List
+          </button>
+          <button @click="goToCreate" :class="{ active: currentView === 'create' }">
+            Create Article
+          </button>
+        </nav>
+        <div class="workspace-selector" v-if="workspaces.length > 0">
+          <label>Workspace:</label>
+          <select v-model="selectedWorkspace" @change="selectWorkspace(selectedWorkspace)">
+            <option value="">All Workspaces</option>
+            <option v-for="workspace in workspaces" :key="workspace.id" :value="workspace.id">
+              {{ workspace.name }}
+            </option>
+            <option value="uncategorized">Uncategorized</option>
+          </select>
+        </div>
+      </header>
+
+      <main>
+        <ArticleList v-if="currentView === 'list'" @view-article="viewArticle" :workspace-id="selectedWorkspace" ref="articleList" @auth-error="logout" />
+        <CreateArticle v-if="currentView === 'create'" @article-created="onArticleCreated" :workspaces="workspaces" :selected-workspace="selectedWorkspace" @auth-error="logout" />
+        <ViewArticle v-if="currentView === 'view'" :article-id="selectedArticleId" @back="currentView = 'list'" @article-deleted="onArticleDeleted" ref="viewArticle" @auth-error="logout" />
+      </main>
+    </div>
+    </template>
   </div>
 </template>
 
@@ -35,13 +60,19 @@
 import ArticleList from './components/ArticleList.vue'
 import CreateArticle from './components/CreateArticle.vue'
 import ViewArticle from './components/ViewArticle.vue'
+import Login from './components/Login.vue'
+import Register from './components/Register.vue'
+import { authAPI } from './api/auth.js'
+import api from './api/index.js'
 
 export default {
   name: 'App',
   components: {
     ArticleList,
     CreateArticle,
-    ViewArticle
+    ViewArticle,
+    Login,
+    Register
   },
   provide() {
     return {
@@ -55,20 +86,65 @@ export default {
       notification: null,
       ws: null,
       workspaces: [],
-      selectedWorkspace: ''
+      selectedWorkspace: '',
+      authView: 'login',
+      isAuthenticated: false,
+      userEmail: '',
+      appLoading: true
     }
   },
-  mounted() {
-    this.connectWebSocket();
-    this.loadWorkspaces();
-    this.restoreStateFromURL();
+  async mounted() {
+    await this.checkAuthentication();
+    if (this.isAuthenticated) {
+      authAPI.startTokenCheck(); // Start token expiry checking
+      this.connectWebSocket();
+      this.loadWorkspaces();
+      this.restoreStateFromURL();
+    }
+    this.appLoading = false;
     window.addEventListener('popstate', this.handlePopState);
+    window.addEventListener('auth-logout', (e) => this.logout(e.detail?.reason)); // Listen for custom logout event
   },
   beforeUnmount() {
     if (this.ws) this.ws.close();
     window.removeEventListener('popstate', this.handlePopState);
+    window.removeEventListener('auth-logout', (e) => this.logout(e.detail?.reason)); // Clean up the event listener
   },
   methods: {
+    async checkAuthentication() {
+      if (!authAPI.hasToken()) {
+        this.isAuthenticated = false;
+        return;
+      }
+
+      const valid = await authAPI.verifyToken();
+      if (valid) {
+        this.isAuthenticated = true;
+        this.userEmail = authAPI.getUserEmail();
+      } else {
+        this.logout();
+      }
+    },
+    async onLoginSuccess() {
+      await this.checkAuthentication();
+      authAPI.startTokenCheck(); // Start token expiry checking after login
+      this.connectWebSocket();
+      this.loadWorkspaces();
+      this.restoreStateFromURL();
+    },
+    logout(reason) {
+      authAPI.logout();
+      this.isAuthenticated = false;
+      this.userEmail = '';
+      if (this.ws) {
+        this.ws.close();
+        this.ws = null;
+      }
+      this.authView = 'login';
+      if (reason === 'expired') {
+        this.showNotification('Your session has expired. Please log in again.');
+      }
+    },
     connectWebSocket() {
       this.ws = new WebSocket('ws://localhost:3001');
       this.ws.onmessage = (event) => {
@@ -146,8 +222,8 @@ export default {
     },
     async loadWorkspaces() {
       try {
-        const response = await fetch('http://localhost:3001/api/workspaces');
-        this.workspaces = await response.json();
+        const response = await api.get('/workspaces');
+        this.workspaces = response.data || [];
       } catch (error) {
         console.error('Error loading workspaces:', error);
       }
@@ -196,9 +272,37 @@ header {
   box-shadow: 0 2px 4px rgba(0,0,0,0.1);
 }
 
-header h1 {
+.header-content {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
   margin-bottom: 15px;
+}
+
+header h1 {
+  margin: 0;
   color: #333;
+}
+
+.user-info {
+  display: flex;
+  align-items: center;
+  gap: 15px;
+  color: #666;
+}
+
+.logout-btn {
+  background: #e74c3c;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.logout-btn:hover {
+  background: #c0392b;
 }
 
 nav button {
@@ -253,17 +357,52 @@ main {
   position: fixed;
   top: 20px;
   right: 20px;
-  background: #2c9e65;
-  color: white;
+  background: #fff3cd;
+  color: #856404;
   padding: 15px 20px;
   border-radius: 4px;
+  border: 1px solid #ffeaa7;
   box-shadow: 0 4px 8px rgba(0,0,0,0.2);
   z-index: 1000;
   animation: slideIn 0.3s ease;
 }
 
 @keyframes slideIn {
-  from { transform: translateX(400px); opacity: 0; }
-  to { transform: translateX(0); opacity: 1; }
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
+  }
+}
+
+.app-loading {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-height: 100vh;
+  gap: 20px;
+}
+
+.spinner {
+  width: 50px;
+  height: 50px;
+  border: 4px solid #f3f3f3;
+  border-top: 4px solid #3574b8;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
+}
+
+.app-loading p {
+  color: #666;
+  font-size: 18px;
 }
 </style>

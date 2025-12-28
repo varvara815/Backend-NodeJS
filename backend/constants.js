@@ -26,5 +26,9 @@ export const MAX_CONTENT_LENGTH = 50000;
 // Paths
 export const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
 
+// Authentication constants
+export const JWT_EXPIRES_IN = '24h';
+export const MIN_PASSWORD_LENGTH = 6;
+
 // WebSocket constants
 export const WS_READY_STATE_OPEN = 1;

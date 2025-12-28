@@ -63,7 +63,7 @@
           <h3>Attachments</h3>
           <div class="attachment-list">
             <div v-for="att in article.attachments" :key="att.filename" class="attachment-item">
-              <a :href="`http://localhost:3001/uploads/${att.filename}`" target="_blank">{{ att.originalName }}</a>
+              <a :href="`${UPLOADS_BASE_URL}/${att.filename}`" target="_blank">{{ att.originalName }}</a>
             </div>
           </div>
         </div>
@@ -91,11 +91,11 @@
 </template>
 
 <script>
-import axios from 'axios';
+import api from '../api';
 import DOMPurify from 'dompurify';
 import ArticleEditor from './ArticleEditor.vue';
 import CommentsSection from './CommentsSection.vue';
-import { API_BASE_URL } from '../constants.js';
+import { UPLOADS_BASE_URL } from '../constants.js';
 
 
 export default {
@@ -156,10 +156,14 @@ export default {
       this.article = null;
       
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/articles/${id}`);
+        const response = await api.get(`/articles/${id}`);
         this.article = response.data;
         this.fetchVersions();
       } catch (error) {
+        if (error.response && [401, 403].includes(error.response.status)) {
+          this.$emit('auth-error');
+          return;
+        }
         this.error = error.response?.status === 404 ? 'Article not found' : 'Failed to load article';
       } finally {
         this.loading = false;
@@ -170,13 +174,16 @@ export default {
       if (!this.articleId) return;
       try {
         this.loadingVersions = true;
-        const response = await axios.get(`${API_BASE_URL}/api/articles/${this.articleId}/versions`);
+        const response = await api.get(`/articles/${this.articleId}/versions`);
         this.versions = response.data;
-        // By default, select the latest version if not viewing a specific version
         if (!this.isViewingVersion && this.versions.length > 0) {
           this.currentVersion = this.versions[0].version_number;
         }
       } catch (error) {
+        if (error.response && [401, 403].includes(error.response.status)) {
+          this.$emit('auth-error');
+          return;
+        }
         console.error('Failed to fetch versions:', error);
       } finally {
         this.loadingVersions = false;
@@ -184,7 +191,6 @@ export default {
     },
     
     async viewVersion(versionNumber) {
-      // If this is the latest version, show the current article
       const latestVersion = this.versions.length > 0 ? this.versions[0].version_number : 1;
       if (versionNumber === latestVersion) {
         this.viewCurrentVersion();
@@ -193,7 +199,7 @@ export default {
       
       try {
         this.loading = true;
-        const response = await axios.get(`${API_BASE_URL}/api/articles/${this.articleId}/versions/${versionNumber}`);
+        const response = await api.get(`/articles/${this.articleId}/versions/${versionNumber}`);
         this.article = response.data;
         this.currentVersion = versionNumber;
         this.isViewingVersion = true;
@@ -216,9 +222,13 @@ export default {
     },
     async loadWorkspaces() {
       try {
-        const response = await axios.get(`${API_BASE_URL}/api/workspaces`);
+        const response = await api.get('/workspaces');
         this.workspaces = response.data;
       } catch (error) {
+        if (error.response && [401, 403].includes(error.response.status)) {
+          this.$emit('auth-error');
+          return;
+        }
         console.error('Error loading workspaces:', error);
       }
     },
@@ -232,7 +242,7 @@ export default {
     async deleteArticle() {
       if (!confirm('Are you sure you want to delete this article?')) return;
       try {
-        const response = await axios.delete(`${API_BASE_URL}/api/articles/${this.articleId}`);
+        const response = await api.delete(`/articles/${this.articleId}`);
         if (response.status === 204) {
           this.showSuccessMessage('Article deleted successfully');
           this.$emit('article-deleted');
@@ -241,6 +251,10 @@ export default {
           }, 500);
         }
       } catch (error) {
+        if (error.response && [401, 403].includes(error.response.status)) {
+          this.$emit('auth-error');
+          return;
+        }
         console.error('Delete error:', error);
         this.error = error.response?.data?.error || 'Failed to delete article';
       }

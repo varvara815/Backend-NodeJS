@@ -41,7 +41,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/articles - Create new article
 router.post('/', async (req, res) => {
   try {
-    const article = await articleService.createArticle(req.body);
+    const article = await articleService.createArticle(req.body, req.user.userId);
     res
       .status(201)
       .json({ id: article.id, message: 'Article created successfully' });
@@ -63,7 +63,7 @@ router.post('/', async (req, res) => {
 // PUT /api/articles/:id - Update article
 router.put('/:id', async (req, res) => {
   try {
-    const article = await articleService.updateArticle(req.params.id, req.body);
+    const article = await articleService.updateArticle(req.params.id, req.body, req.user.userId);
     websocketService.broadcast(req.wss, {
       type: 'article-updated',
       articleId: req.params.id,

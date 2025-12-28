@@ -49,10 +49,10 @@
 </template>
 
 <script>
-import axios from 'axios';
+import api from '../api';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { API_BASE_URL, EDITOR_OPTIONS, FILE_SIZE_LIMIT, ALLOWED_FILE_TYPES, ALLOWED_FILE_EXTENSIONS } from '../constants.js';
+import { EDITOR_OPTIONS, FILE_SIZE_LIMIT, ALLOWED_FILE_TYPES, ALLOWED_FILE_EXTENSIONS } from '../constants.js';
 
 export default {
   name: 'CreateArticle',
@@ -127,7 +127,7 @@ export default {
       this.success = null;
       
       try {
-        const response = await axios.post(`${API_BASE_URL}/api/articles`, {
+        const response = await api.post('/articles', {
           title: this.title,
           content: this.content,
           workspace_id: this.workspaceId === 'null' ? null : this.workspaceId || null
@@ -140,7 +140,11 @@ export default {
             const formData = new FormData();
             formData.append('file', file);
             try {
-              await axios.post(`${API_BASE_URL}/api/articles/${articleId}/attachments`, formData);
+              await api.post(`/articles/${articleId}/attachments`, formData, {
+                headers: {
+                  'Content-Type': 'multipart/form-data'
+                }
+              });
             } catch (uploadError) {
               console.warn(`Failed to upload ${file.name}:`, uploadError);
             }
@@ -153,6 +157,10 @@ export default {
           this.$emit('article-created');
         }, 1500);
       } catch (error) {
+        if (error.response && [401, 403].includes(error.response.status)) {
+          this.$emit('auth-error');
+          return;
+        }
         this.error = error.response?.data?.error || 'Failed to create article';
       } finally {
         this.loading = false;

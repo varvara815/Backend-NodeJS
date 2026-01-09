@@ -32,3 +32,9 @@ export const MIN_PASSWORD_LENGTH = 6;
 
 // WebSocket constants
 export const WS_READY_STATE_OPEN = 1;
+
+// Role constants
+export const ROLES = {
+  ADMIN: 'admin',
+  USER: 'user'
+};

@@ -23,3 +23,9 @@ export const UPLOADS_BASE_URL =
 
 // Authentication constants
 export const TOKEN_EXPIRY = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
+// Role constants
+export const ROLES = {
+  ADMIN: 'admin',
+  USER: 'user'
+};

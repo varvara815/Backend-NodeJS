@@ -67,19 +67,29 @@ router.post('/login', async (req, res) => {
       return res.status(401).json({ error: 'Invalid credentials' });
     }
 
-    const token = jwt.sign({ userId: user.id, email: user.email }, JWT_SECRET, {
+    const token = jwt.sign({ userId: user.id, email: user.email, role: user.role }, JWT_SECRET, {
       expiresIn: JWT_EXPIRES_IN,
     });
 
-    res.json({ token, email: user.email });
+    res.json({ token, email: user.email, userId: user.id, role: user.role });
   } catch (error) {
     res.status(500).json({ error: 'Login failed' });
   }
 });
 
 // Verify token endpoint
-router.get('/verify', authenticateToken, (req, res) => {
-  res.json({ valid: true, user: { id: req.user.userId, email: req.user.email } });
+router.get('/verify', authenticateToken, async (req, res) => {
+  try {
+    const user = await User.findByPk(req.user.userId, {
+      attributes: ['id', 'email', 'role']
+    });
+    if (!user) {
+      return res.status(404).json({ error: 'User not found' });
+    }
+    res.json({ valid: true, user: { id: user.id, email: user.email, role: user.role } });
+  } catch (error) {
+    res.status(500).json({ error: 'Verification failed' });
+  }
 });
 
 export default router;

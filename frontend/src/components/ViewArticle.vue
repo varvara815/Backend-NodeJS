@@ -22,7 +22,7 @@
           {{ showVersions ? 'Hide' : 'Show' }} Versions
         </button>
       </div>
-      <div v-if="article && !editing && !isViewingVersion" class="action-buttons">
+      <div v-if="article && !editing && !isViewingVersion && canEditArticle" class="action-buttons">
         <button @click="startEdit" class="btn-edit">Edit</button>
         <button @click="deleteArticle" class="btn-delete">Delete</button>
       </div>
@@ -96,6 +96,7 @@ import DOMPurify from 'dompurify';
 import ArticleEditor from './ArticleEditor.vue';
 import CommentsSection from './CommentsSection.vue';
 import { UPLOADS_BASE_URL } from '../constants.js';
+import { authAPI } from '../api/auth.js';
 
 
 export default {
@@ -124,6 +125,13 @@ export default {
         ALLOWED_TAGS: ['p', 'br', 'strong', 'em', 'u', 'b', 'i', 'span', 'div', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'ul', 'ol', 'li', 'blockquote', 'a', 'img'],
         ALLOWED_ATTR: ['href', 'src', 'alt', 'title', 'style', 'class']
       }) : '';
+    },
+    canEditArticle() {
+      if (!this.article) return false;
+      const currentUserId = authAPI.getUserId();
+      const isAdmin = authAPI.isAdmin();
+      const articleUserId = this.article.User ? this.article.User.id : this.article.user_id;
+      return isAdmin || (articleUserId && currentUserId && String(articleUserId) === String(currentUserId));
     }
   },
   watch: {

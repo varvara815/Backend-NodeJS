@@ -1,4 +1,5 @@
 import jwt from 'jsonwebtoken';
+import { ROLES } from '../constants.js';
 
 const JWT_SECRET = process.env.JWT_SECRET;
 
@@ -22,3 +23,11 @@ export const authenticateToken = (req, res, next) => {
     next();
   });
 };
+
+export const requireAdmin = (req, res, next) => {
+  if (req.user?.role !== ROLES.ADMIN) {
+    return res.status(403).json({ error: 'Admin access required' });
+  }
+  next();
+};
+

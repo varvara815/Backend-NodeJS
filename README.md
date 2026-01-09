@@ -7,6 +7,7 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 ### Authentication & Security
 - **User registration** with email and password validation
 - **JWT-based authentication** for secure login sessions
+- **Role-based access control (RBAC)** - Users have roles: admin or user
 - **Protected routes** - Logic page accessible only with valid JWT
 - **Automatic token validation** and expiration handling
 - **Secure password storage** with bcrypt hashing
@@ -14,6 +15,7 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 
 ### Articles Management
 - **Full CRUD operations** for articles (Create, Read, Update, Delete)
+- **Permission-based editing** - Only article creator or admin can edit/delete
 - View list of articles (sorted by creation date)
 - Read individual articles with HTML content (XSS protected)
 - Create new articles with WYSIWYG editor
@@ -32,6 +34,12 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 - Articles organized in workspaces
 - Filter articles by workspace
 - Display workspace information in article list
+
+### User Management (Admin Only)
+- **View all users** - Admins can see list of all registered users
+- **Manage user roles** - Admins can change user roles (admin/user)
+- **Protected access** - Only admins can access User Management page
+- **Role enforcement** - Backend validates admin permissions on all endpoints
 
 ### Real-time & Security
 - **Real-time notifications** - WebSocket notifications for article updates
@@ -129,20 +137,31 @@ The application will be available at:
 - Email: `admin@example.com`
 - Password: `password123`
 
+**To make a user admin:**
+```bash
+# Edit backend/make-admin.js to set the email, then run:
+cd backend
+node make-admin.js
+# Then the user must logout and login again to get new JWT token with admin role
+```
+
 ## API Endpoints
 
 ### Authentication
-- `POST /api/auth/register` - Register new user (email, password)
-- `POST /api/auth/login` - Login user (returns JWT token)
-- `POST /api/auth/logout` - Logout user
-- `GET /api/auth/me` - Get current user info (requires JWT)
+- `POST /api/auth/register` - Register new user (email, password) - returns user with role='user'
+- `POST /api/auth/login` - Login user (returns JWT token with role)
+- `GET /api/auth/verify` - Verify JWT token (requires JWT)
+
+### Users (Admin Only)
+- `GET /api/users` - Get all users with their roles (admin only)
+- `PUT /api/users/:id/role` - Update user role (admin only)
 
 ### Articles
 - `GET /api/articles` - Get all articles (sorted by creation date, supports ?workspace_id filter)
 - `GET /api/articles/:id` - Get specific article by ID (includes comments)
-- `POST /api/articles` - Create new article
-- `PUT /api/articles/:id` - Update existing article
-- `DELETE /api/articles/:id` - Delete article
+- `POST /api/articles` - Create new article (requires JWT)
+- `PUT /api/articles/:id` - Update existing article (only creator or admin)
+- `DELETE /api/articles/:id` - Delete article (only creator or admin)
 - `POST /api/articles/:id/attachments` - Upload file attachment to article
 - `DELETE /api/articles/:id/attachments/:filename` - Delete file attachment
 - `POST /api/articles/:id/notify-update` - Send WebSocket notification for article update
@@ -186,6 +205,7 @@ The application will be available at:
 | id | UUID | Primary key |
 | email | VARCHAR(255) | User email (unique) |
 | password | VARCHAR(255) | Hashed password |
+| role | ENUM('admin', 'user') | User role (default: 'user') |
 | createdAt | TIMESTAMP | Registration timestamp |
 | updatedAt | TIMESTAMP | Last update timestamp |
 
@@ -241,10 +261,11 @@ The application will be available at:
 │   │   ├── articles.js    # Article API routes
 │   │   ├── auth.js        # Authentication API routes
 │   │   ├── comments.js    # Comment API routes
-
-│   │   └── workspaces.js  # Workspace API routes
+│   │   ├── users.js       # User management API routes (admin only)
+│   │   ├── workspaces.js  # Workspace API routes
+│   │   └── index.js       # Route configuration
 │   ├── middleware/
-│   │   ├── auth.js          # JWT authentication middleware
+│   │   ├── auth.js          # JWT authentication & RBAC (Role-Based Access Control) middleware
 │   │   └── errorHandler.js  # Error handling middleware
 │   ├── services/
 │   │   ├── articleService.js    # Article business logic
@@ -253,13 +274,19 @@ The application will be available at:
 │   │   └── websocketService.js  # WebSocket notifications
 │   ├── migrations/        # Database migration files
 │   ├── seeders/           # Database seed files
+│   ├── make-admin.js      # Script to make user admin
 │   ├── server.js          # Main server file
 │   ├── validators.js      # Input validation
+│   ├── constants.js       # Constants (roles, limits, etc.)
 │   └── .env               # Environment variables
 ├── frontend/
 │   ├── src/
 │   │   ├── components/    # Vue components
-│   │   ├── constants.js   # API configuration
+│   │   ├── api/
+│   │   │   ├── auth.js      # Authentication API calls
+│   │   │   ├── storage.js   # localStorage management
+│   │   │   └── index.js     # Axios configuration
+│   │   ├── constants.js   # Constants (roles, API config)
 │   │   ├── App.vue        # Main app component
 │   │   └── main.js        # Entry point
 │   ├── index.html

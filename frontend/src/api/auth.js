@@ -1,6 +1,6 @@
 import api from './index.js';
 import { storage } from './storage.js';
-import { TOKEN_EXPIRY } from '../constants.js';
+import { TOKEN_EXPIRY, ROLES } from '../constants.js';
 
 export const authAPI = {
   tokenCheckInterval: null,
@@ -20,6 +20,8 @@ export const authAPI = {
       const data = response.data;
       storage.setToken(data.token);
       storage.setUserEmail(data.email);
+      storage.setUserId(data.userId);
+      storage.setUserRole(data.role);
       storage.setTokenTimestamp(Date.now());
       this.startTokenCheck();
       return { data, ok: true };
@@ -39,6 +41,18 @@ export const authAPI = {
 
   getUserEmail() {
     return storage.getUserEmail();
+  },
+
+  getUserId() {
+    return storage.getUserId();
+  },
+
+  getUserRole() {
+    return storage.getUserRole();
+  },
+
+  isAdmin() {
+    return storage.getUserRole() === ROLES.ADMIN;
   },
 
   hasToken() {
@@ -84,10 +98,5 @@ export const authAPI = {
     } catch (error) {
       return false;
     }
-  },
-
-  getAuthHeaders() {
-    const token = this.getToken();
-    return token ? { 'Authorization': `Bearer ${token}` } : {};
   }
 };

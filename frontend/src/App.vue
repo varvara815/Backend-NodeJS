@@ -33,6 +33,9 @@
           <button @click="goToCreate" :class="{ active: currentView === 'create' }">
             Create Article
           </button>
+          <button v-if="isAdmin" @click="goToUserManagement" :class="{ active: currentView === 'users' }">
+            User Management
+          </button>
         </nav>
         <div class="workspace-selector" v-if="workspaces.length > 0">
           <label>Workspace:</label>
@@ -50,6 +53,7 @@
         <ArticleList v-if="currentView === 'list'" @view-article="viewArticle" :workspace-id="selectedWorkspace" ref="articleList" @auth-error="logout" />
         <CreateArticle v-if="currentView === 'create'" @article-created="onArticleCreated" :workspaces="workspaces" :selected-workspace="selectedWorkspace" @auth-error="logout" />
         <ViewArticle v-if="currentView === 'view'" :article-id="selectedArticleId" @back="currentView = 'list'" @article-deleted="onArticleDeleted" ref="viewArticle" @auth-error="logout" />
+        <UserManagement v-if="currentView === 'users' && isAdmin" @auth-error="logout" />
       </main>
     </div>
     </template>
@@ -62,6 +66,7 @@ import CreateArticle from './components/CreateArticle.vue'
 import ViewArticle from './components/ViewArticle.vue'
 import Login from './components/Login.vue'
 import Register from './components/Register.vue'
+import UserManagement from './components/UserManagement.vue'
 import { authAPI } from './api/auth.js'
 import api from './api/index.js'
 
@@ -72,7 +77,8 @@ export default {
     CreateArticle,
     ViewArticle,
     Login,
-    Register
+    Register,
+    UserManagement
   },
   provide() {
     return {
@@ -90,7 +96,13 @@ export default {
       authView: 'login',
       isAuthenticated: false,
       userEmail: '',
-      appLoading: true
+      appLoading: true,
+      userRole: null
+    }
+  },
+  computed: {
+    isAdmin() {
+      return this.userRole === 'admin';
     }
   },
   async mounted() {
@@ -114,6 +126,7 @@ export default {
     async checkAuthentication() {
       if (!authAPI.hasToken()) {
         this.isAuthenticated = false;
+        this.userRole = null;
         return;
       }
 
@@ -121,12 +134,14 @@ export default {
       if (valid) {
         this.isAuthenticated = true;
         this.userEmail = authAPI.getUserEmail();
+        this.userRole = authAPI.getUserRole();
       } else {
         this.logout();
       }
     },
     async onLoginSuccess() {
       await this.checkAuthentication();
+      this.userRole = authAPI.getUserRole();
       authAPI.startTokenCheck(); // Start token expiry checking after login
       this.connectWebSocket();
       this.loadWorkspaces();
@@ -136,6 +151,7 @@ export default {
       authAPI.logout();
       this.isAuthenticated = false;
       this.userEmail = '';
+      this.userRole = null;
       if (this.ws) {
         this.ws.close();
         this.ws = null;
@@ -187,6 +203,9 @@ export default {
       } else if (this.currentView === 'create') {
         url.searchParams.set('view', 'create');
         url.searchParams.delete('article');
+      } else if (this.currentView === 'users') {
+        url.searchParams.set('view', 'users');
+        url.searchParams.delete('article');
       } else {
         url.searchParams.delete('article');
         url.searchParams.delete('view');
@@ -203,6 +222,8 @@ export default {
         this.currentView = 'view';
       } else if (view === 'create') {
         this.currentView = 'create';
+      } else if (view === 'users' && this.isAdmin) {
+        this.currentView = 'users';
       } else {
         this.currentView = 'list';
       }
@@ -214,6 +235,11 @@ export default {
     },
     goToCreate() {
       this.currentView = 'create';
+      this.selectedArticleId = null;
+      this.updateURL();
+    },
+    goToUserManagement() {
+      this.currentView = 'users';
       this.selectedArticleId = null;
       this.updateURL();
     },

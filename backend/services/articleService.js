@@ -9,6 +9,7 @@ import {
   DEFAULT_PAGE_SIZE,
   MAX_COMMENTS_PER_ARTICLE,
   FILE_SIZE_LIMIT,
+  ROLES,
 } from '../constants.js';
 import { fileService } from './fileService.js';
 import sequelize from '../config/database.js';
@@ -100,7 +101,7 @@ export const articleService = {
   },
 
   // Update existing article with versioning
-  async updateArticle(id, data, userId) {
+  async updateArticle(id, data, user) {
     const { title, content, workspace_id } = data;
     const errors = validateArticle(title, content);
     if (errors.length > 0) {
@@ -119,6 +120,10 @@ export const articleService = {
       throw new Error('Article not found');
     }
 
+    if (String(article.user_id) !== String(user.userId) && user.role !== ROLES.ADMIN) {
+      throw new Error('You do not have permission to edit this article');
+    }
+
     const transaction = await sequelize.transaction();
     try {
       // Update current article
@@ -127,7 +132,6 @@ export const articleService = {
           title: title.trim(),
           content: content.trim(),
           workspace_id: workspace_id === '' ? null : workspace_id,
-          user_id: userId,
         },
         { transaction }
       );
@@ -238,10 +242,14 @@ export const articleService = {
   },
 
   // Delete article and all its files
-  async deleteArticle(id) {
+  async deleteArticle(id, user) {
     const article = await Article.findByPk(id);
     if (!article) {
       throw new Error('Article not found');
+    }
+
+    if (String(article.user_id) !== String(user.userId) && user.role !== ROLES.ADMIN) {
+      throw new Error('You do not have permission to delete this article');
     }
 
     const attachments = article.attachments || [];

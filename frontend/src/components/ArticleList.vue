@@ -1,9 +1,25 @@
 <template>
   <div>
     <h2>Articles List</h2>
+    <div class="search-container">
+      <input 
+        v-model="searchQuery" 
+        @input="onSearchInput"
+        type="text" 
+        placeholder="Search articles by title or content..."
+        class="search-input"
+      />
+    </div>
     <div v-if="loading" class="loading">Loading articles...</div>
     <div v-else-if="error" class="error">{{ error }}</div>
-    <div v-else-if="articles.length === 0" class="empty">No articles found. Create your first article!</div>
+    <div v-else-if="articles.length === 0" class="empty">
+      <div v-if="searchQuery.trim()">
+        No articles found for "{{ searchQuery.trim() }}"
+      </div>
+      <div v-else>
+        No articles found. Create your first article!
+      </div>
+    </div>
     <div v-else>
       <div v-for="article in articles" :key="article.id" 
            class="article-item" @click="viewArticle(article.id)">
@@ -33,7 +49,15 @@ export default {
     return {
       articles: [],
       loading: false,
-      error: null
+      error: null,
+      searchQuery: '',
+      searchTimeout: null,
+      minSearchLength: 1 
+    }
+  },
+  beforeDestroy() {
+    if (this.searchTimeout) {
+      clearTimeout(this.searchTimeout);
     }
   },
   async mounted() {
@@ -45,17 +69,26 @@ export default {
     }
   },
   methods: {
+    buildQueryParams() {
+      let params = {};
+      if (this.workspaceId && this.workspaceId !== 'uncategorized') {
+        params.workspace_id = this.workspaceId;
+      } else if (this.workspaceId === 'uncategorized') {
+        params.workspace_id = 'null';
+      }
+      
+      const trimmedQuery = this.searchQuery.trim();
+      if (trimmedQuery.length >= this.minSearchLength) {
+        params.search = trimmedQuery;
+      }
+      return params;
+    },
     async loadArticles() {
       this.loading = true;
       this.error = null;
       
       try {
-        let params = {};
-        if (this.workspaceId && this.workspaceId !== 'uncategorized') {
-          params.workspace_id = this.workspaceId;
-        } else if (this.workspaceId === 'uncategorized') {
-          params.workspace_id = 'null';
-        }
+        const params = this.buildQueryParams();
         
         const response = await api.get('/articles', { params });
         this.articles = response.data;
@@ -69,6 +102,12 @@ export default {
         this.loading = false;
       }
     },
+    onSearchInput() {
+      clearTimeout(this.searchTimeout);
+      this.searchTimeout = setTimeout(() => {
+        this.loadArticles();
+      }, 300);
+    },
     viewArticle(id) {
       this.$emit('view-article', id);
     }
@@ -77,6 +116,27 @@ export default {
 </script>
 
 <style scoped>
+.search-container {
+  margin-top: 15px;
+  margin-bottom: 20px;
+}
+
+.search-input {
+  width: 100%;
+  padding: 12px 16px;
+  font-size: 16px;
+  border: 1px solid #ced4da;
+  border-radius: 4px;
+  box-sizing: border-box;
+  transition: border-color 0.2s;
+}
+
+.search-input:focus {
+  outline: none;
+  border-color: #007bff;
+  box-shadow: 0 0 0 0.2rem rgba(0, 123, 255, 0.25);
+}
+
 .article-item {
   padding: 15px;
   border-bottom: 1px solid #eee;

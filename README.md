@@ -22,6 +22,7 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 - Edit existing articles with WYSIWYG editor
 - Delete articles with confirmation
 - **File attachments** - Upload and attach files to articles (JPG, PNG, GIF, PDF)
+- **Article Search** - Find articles by matching text in title or content (case-insensitive, minimum 1 character search, debounced for performance).
 
 ### Comments System
 - **Full CRUD operations** for comments (Create, Read, Update, Delete)

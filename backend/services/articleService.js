@@ -13,6 +13,7 @@ import {
 } from '../constants.js';
 import { fileService } from './fileService.js';
 import sequelize from '../config/database.js';
+import { Op } from 'sequelize';
 import path from 'path';
 import fs from 'fs/promises';
 import { UPLOADS_DIR } from '../constants.js';
@@ -21,13 +22,27 @@ import { articleVersionService } from './articleVersionService.js';
 export const articleService = {
   // Get articles with filtering and pagination
   async getArticles(query) {
-    const { workspace_id, page = 1, limit = DEFAULT_PAGE_SIZE } = query;
+    const { workspace_id, page = 1, limit = DEFAULT_PAGE_SIZE, search } = query;
     let whereClause = {};
 
     if (workspace_id === 'null') {
       whereClause = { workspace_id: null };
     } else if (workspace_id) {
       whereClause = { workspace_id };
+    }
+
+    if (search && typeof search === 'string') {
+      const trimmedSearch = search.trim();
+      if (trimmedSearch) {
+        if (trimmedSearch.length > 100) {
+          throw new Error('Search query is too long (max 100 chars).');
+        }
+        const escapedSearch = trimmedSearch.replace(/[%_]/g, '\\$&');
+        whereClause[Op.or] = [
+          { title: { [Op.iLike]: `%${escapedSearch}%` } },
+          { content: { [Op.iLike]: `%${escapedSearch}%` } }
+        ];
+      }
     }
 
     const offset = (parseInt(page) - 1) * parseInt(limit);

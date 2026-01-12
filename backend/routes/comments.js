@@ -1,6 +1,6 @@
 import express from 'express';
-import { Comment, Article } from '../models/index.js';
-
+import { Comment, Article, User } from '../models/index.js';
+import { authenticateToken } from '../middleware/auth.js';
 import { MAX_COMMENTS_PER_ARTICLE } from '../constants.js';
 
 const router = express.Router();
@@ -11,6 +11,7 @@ router.get('/articles/:articleId/comments', async (req, res) => {
       const { limit = MAX_COMMENTS_PER_ARTICLE, offset = 0 } = req.query;
       const comments = await Comment.findAll({
         where: { article_id: req.params.articleId },
+        include: [{ model: User, as: 'User', attributes: ['id', 'email'] }],
         order: [['createdAt', 'DESC']],
         limit: parseInt(limit),
         offset: parseInt(offset)
@@ -23,7 +24,7 @@ router.get('/articles/:articleId/comments', async (req, res) => {
 );
 
 // POST /api/articles/:articleId/comments - Create new comment
-router.post('/articles/:articleId/comments', async (req, res) => {
+router.post('/articles/:articleId/comments', authenticateToken, async (req, res) => {
     try {
       const { content } = req.body;
 
@@ -40,9 +41,14 @@ router.post('/articles/:articleId/comments', async (req, res) => {
       const comment = await Comment.create({
         content: content.trim(),
         article_id: req.params.articleId,
+        user_id: req.user.userId,
       });
 
-      res.status(201).json(comment);
+      const commentWithUser = await Comment.findByPk(comment.id, {
+        include: [{ model: User, as: 'User', attributes: ['id', 'email'] }]
+      });
+
+      res.status(201).json(commentWithUser);
     } catch (error) {
       console.error('Error creating comment:', error);
       res.status(500).json({ error: 'Error creating comment' });
@@ -67,7 +73,7 @@ router.get('/comments/:id', async (req, res) => {
 });
 
 // PUT /api/comments/:id - Update existing comment
-router.put('/comments/:id', async (req, res) => {
+router.put('/comments/:id', authenticateToken, async (req, res) => {
   try {
     const { content } = req.body;
 
@@ -80,9 +86,18 @@ router.put('/comments/:id', async (req, res) => {
       return res.status(404).json({ error: 'Comment not found' });
     }
 
+    // Check if user is the author
+    if (comment.user_id !== req.user.userId) {
+      return res.status(403).json({ error: 'You can only edit your own comments' });
+    }
+
     await comment.update({ content: content.trim() });
 
-    res.json(comment);
+    const updatedComment = await Comment.findByPk(comment.id, {
+      include: [{ model: User, as: 'User', attributes: ['id', 'email'] }]
+    });
+
+    res.json(updatedComment);
   } catch (error) {
     console.error('Error updating comment:', error);
     res.status(500).json({ error: 'Error updating comment' });
@@ -90,11 +105,16 @@ router.put('/comments/:id', async (req, res) => {
 });
 
 // DELETE /api/comments/:id - Delete comment
-router.delete('/comments/:id', async (req, res) => {
+router.delete('/comments/:id', authenticateToken, async (req, res) => {
   try {
     const comment = await Comment.findByPk(req.params.id);
     if (!comment) {
       return res.status(404).json({ error: 'Comment not found' });
+    }
+
+    // Check if user is the author
+    if (comment.user_id !== req.user.userId) {
+      return res.status(403).json({ error: 'You can only delete your own comments' });
     }
 
     await comment.destroy();

@@ -28,7 +28,15 @@ const Article = sequelize.define(
         },
       },
     },
-
+    user_id: {
+      type: DataTypes.UUID,
+      allowNull: false,
+      references: {
+        model: 'users',
+        key: 'id',
+      },
+      onDelete: 'CASCADE',
+    },
     workspace_id: {
       type: DataTypes.UUID,
       allowNull: true,

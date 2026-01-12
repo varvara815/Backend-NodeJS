@@ -29,7 +29,7 @@
       <h3>Attachments</h3>
       <div class="attachment-list">
         <div v-for="att in visibleAttachments" :key="att.filename" class="attachment-item">
-          <a :href="`http://localhost:3001/uploads/${att.filename}`" target="_blank">{{ att.originalName }}</a>
+          <a :href="`${UPLOADS_BASE_URL}/${att.filename}`" target="_blank">{{ att.originalName }}</a>
           <button @click="markForDeletion(att.filename)" class="btn-delete-att">×</button>
         </div>
       </div>
@@ -72,10 +72,10 @@
 </template>
 
 <script>
-import axios from 'axios';
+import api from '../api';
 import { QuillEditor } from '@vueup/vue-quill';
 import '@vueup/vue-quill/dist/vue-quill.snow.css';
-import { API_BASE_URL, EDITOR_OPTIONS, FILE_SIZE_LIMIT, ALLOWED_FILE_TYPES, ALLOWED_FILE_EXTENSIONS } from '../constants.js';
+import { EDITOR_OPTIONS, FILE_SIZE_LIMIT, ALLOWED_FILE_TYPES, ALLOWED_FILE_EXTENSIONS, UPLOADS_BASE_URL } from '../constants.js';
 
 export default {
   name: 'ArticleEditor',
@@ -185,9 +185,9 @@ export default {
         // Delete marked files first
         if (hasFilesToDelete) {
           for (const filename of this.filesToDelete) {
-            await axios.delete(`${API_BASE_URL}/api/articles/${this.article.id}/attachments/${filename}`);
+            await api.delete(`/articles/${this.article.id}/attachments/${filename}`);
           }
-          const response = await axios.get(`${API_BASE_URL}/api/articles/${this.article.id}`);
+          const response = await api.get(`/articles/${this.article.id}`);
           this.article.attachments = response.data.attachments || [];
           this.filesToDelete = [];
         }
@@ -197,7 +197,11 @@ export default {
           for (const file of this.pendingFiles) {
             const formData = new FormData();
             formData.append('file', file);
-            const response = await axios.post(`${API_BASE_URL}/api/articles/${this.article.id}/attachments`, formData);
+            const response = await api.post(`/articles/${this.article.id}/attachments`, formData, {
+              headers: {
+                'Content-Type': 'multipart/form-data'
+              }
+            });
             if (response.data.attachments) {
               this.article.attachments = [...response.data.attachments];
             }
@@ -207,13 +211,13 @@ export default {
         
         // Update article text if changed
         if (hasTextChanges) {
-          await axios.put(`${API_BASE_URL}/api/articles/${this.article.id}`, {
+          await api.put(`/articles/${this.article.id}`, {
             title: this.editForm.title,
             content: this.editForm.content,
             workspace_id: this.editForm.workspace_id === '' ? null : this.editForm.workspace_id
           });
         } else if (hasPendingFiles || hasFilesToDelete) {
-          await axios.post(`${API_BASE_URL}/api/articles/${this.article.id}/notify-update`, {
+          await api.post(`/articles/${this.article.id}/notify-update`, {
             title: this.article.title
           });
         }

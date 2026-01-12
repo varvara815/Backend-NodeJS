@@ -1,5 +1,4 @@
-import { ArticleVersion, Workspace } from '../models/index.js';
-import { Comment } from '../models/index.js';
+import { ArticleVersion, Workspace, Comment, User } from '../models/index.js';
 import { MAX_COMMENTS_PER_ARTICLE } from '../constants.js';
 
 async function getNextVersionNumber(articleId, transaction) {
@@ -22,6 +21,7 @@ async function createVersionWithRetry({ transaction, article, versionNumber }, m
         workspace_id: article.workspace_id,
         attachments: article.attachments,
         version_number: versionNumber,
+        user_id: article.user_id,
       }, { transaction });
     } catch (error) {
       if (error.name === 'SequelizeUniqueConstraintError' && attempt < maxRetries - 1) {
@@ -60,6 +60,7 @@ export const articleVersionService = {
     // Load comments for the article (comments are shared across versions)
     const comments = await Comment.findAll({
       where: { article_id: articleId },
+      include: [{ model: User, as: 'User', attributes: ['id', 'email'] }],
       order: [['createdAt', 'DESC']],
       limit: MAX_COMMENTS_PER_ARTICLE,
     });

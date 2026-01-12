@@ -9,6 +9,7 @@
            class="article-item" @click="viewArticle(article.id)">
         <h3>{{ article.title }}</h3>
         <div class="article-meta">
+          <span v-if="article.User" class="author">by {{ article.User.email }}</span>
           <span v-if="article.Workspace" class="workspace">in {{ article.Workspace.name }}</span>
           <span v-else class="workspace uncategorized">Uncategorized</span>
         </div>
@@ -18,8 +19,7 @@
 </template>
 
 <script>
-import axios from 'axios';
-import { API_BASE_URL } from '../constants.js';
+import api from '../api';
 
 export default {
   name: 'ArticleList',
@@ -57,9 +57,13 @@ export default {
           params.workspace_id = 'null';
         }
         
-        const response = await axios.get(`${API_BASE_URL}/api/articles`, { params });
+        const response = await api.get('/articles', { params });
         this.articles = response.data;
       } catch (error) {
+        if (error.response && [401, 403].includes(error.response.status)) {
+          this.$emit('auth-error');
+          return;
+        }
         this.error = 'Failed to load articles. Please check if the server is running.';
       } finally {
         this.loading = false;

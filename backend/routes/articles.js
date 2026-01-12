@@ -41,7 +41,7 @@ router.get('/:id', async (req, res) => {
 // POST /api/articles - Create new article
 router.post('/', async (req, res) => {
   try {
-    const article = await articleService.createArticle(req.body);
+    const article = await articleService.createArticle(req.body, req.user.userId);
     res
       .status(201)
       .json({ id: article.id, message: 'Article created successfully' });
@@ -63,7 +63,7 @@ router.post('/', async (req, res) => {
 // PUT /api/articles/:id - Update article
 router.put('/:id', async (req, res) => {
   try {
-    const article = await articleService.updateArticle(req.params.id, req.body);
+    await articleService.updateArticle(req.params.id, req.body, req.user);
     websocketService.broadcast(req.wss, {
       type: 'article-updated',
       articleId: req.params.id,
@@ -73,9 +73,10 @@ router.put('/:id', async (req, res) => {
   } catch (error) {
     if (
       error.message.includes('not found') ||
-      error.message.includes('validation')
+      error.message.includes('validation') ||
+      error.message.includes('permission')
     ) {
-      return res.status(400).json({ error: error.message });
+      return res.status(error.message.includes('permission') ? 403 : 400).json({ error: error.message });
     }
     console.error(
       `[ERROR] ${new Date().toISOString()}: Error updating article:`,
@@ -195,9 +196,12 @@ router.get('/:id/versions/:version', async (req, res) => {
 // DELETE /api/articles/:id - Delete article and its files
 router.delete('/:id', async (req, res) => {
   try {
-    await articleService.deleteArticle(req.params.id);
+    await articleService.deleteArticle(req.params.id, req.user);
     res.status(204).send();
   } catch (error) {
+    if (error.message.includes('permission')) {
+      return res.status(403).json({ error: error.message });
+    }
     if (error.message.includes('not found')) {
       return res.status(404).json({ error: error.message });
     }

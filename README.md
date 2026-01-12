@@ -4,8 +4,18 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 
 ## Features
 
+### Authentication & Security
+- **User registration** with email and password validation
+- **JWT-based authentication** for secure login sessions
+- **Role-based access control (RBAC)** - Users have roles: admin or user
+- **Protected routes** - Logic page accessible only with valid JWT
+- **Automatic token validation** and expiration handling
+- **Secure password storage** with bcrypt hashing
+- **Session management** - automatic logout on token expiration
+
 ### Articles Management
 - **Full CRUD operations** for articles (Create, Read, Update, Delete)
+- **Permission-based editing** - Only article creator or admin can edit/delete
 - View list of articles (sorted by creation date)
 - Read individual articles with HTML content (XSS protected)
 - Create new articles with WYSIWYG editor
@@ -24,6 +34,12 @@ A full-stack application for managing articles with a Vue.js frontend and Node.j
 - Articles organized in workspaces
 - Filter articles by workspace
 - Display workspace information in article list
+
+### User Management (Admin Only)
+- **View all users** - Admins can see list of all registered users
+- **Manage user roles** - Admins can change user roles (admin/user)
+- **Protected access** - Only admins can access User Management page
+- **Role enforcement** - Backend validates admin permissions on all endpoints
 
 ### Real-time & Security
 - **Real-time notifications** - WebSocket notifications for article updates
@@ -117,14 +133,35 @@ The application will be available at:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:3001
 
+**Default login credentials:**
+- Email: `admin@example.com`
+- Password: `password123`
+
+**To make a user admin:**
+```bash
+# Edit backend/make-admin.js to set the email, then run:
+cd backend
+node make-admin.js
+# Then the user must logout and login again to get new JWT token with admin role
+```
+
 ## API Endpoints
+
+### Authentication
+- `POST /api/auth/register` - Register new user (email, password) - returns user with role='user'
+- `POST /api/auth/login` - Login user (returns JWT token with role)
+- `GET /api/auth/verify` - Verify JWT token (requires JWT)
+
+### Users (Admin Only)
+- `GET /api/users` - Get all users with their roles (admin only)
+- `PUT /api/users/:id/role` - Update user role (admin only)
 
 ### Articles
 - `GET /api/articles` - Get all articles (sorted by creation date, supports ?workspace_id filter)
 - `GET /api/articles/:id` - Get specific article by ID (includes comments)
-- `POST /api/articles` - Create new article
-- `PUT /api/articles/:id` - Update existing article
-- `DELETE /api/articles/:id` - Delete article
+- `POST /api/articles` - Create new article (requires JWT)
+- `PUT /api/articles/:id` - Update existing article (only creator or admin)
+- `DELETE /api/articles/:id` - Delete article (only creator or admin)
 - `POST /api/articles/:id/attachments` - Upload file attachment to article
 - `DELETE /api/articles/:id/attachments/:filename` - Delete file attachment
 - `POST /api/articles/:id/notify-update` - Send WebSocket notification for article update
@@ -161,6 +198,17 @@ The application will be available at:
 
 ## Database Schema
 
+**Users Table:**
+
+| Column | Type | Description |
+|--------|------|-------------|
+| id | UUID | Primary key |
+| email | VARCHAR(255) | User email (unique) |
+| password | VARCHAR(255) | Hashed password |
+| role | ENUM('admin', 'user') | User role (default: 'user') |
+| createdAt | TIMESTAMP | Registration timestamp |
+| updatedAt | TIMESTAMP | Last update timestamp |
+
 **Articles Table:**
 
 | Column | Type | Description | Example |
@@ -169,6 +217,7 @@ The application will be available at:
 | title | VARCHAR(200) | Article title | `"My First Article"` |
 | content | TEXT | Article content (HTML) | `"<p>Hello world</p>"` |
 | attachments | JSON | Array of file attachments | `[{"filename":"doc.pdf","originalName":"document.pdf","size":12345}]` |
+| user_id | UUID | Foreign key to users | `39f39454-077e-4dea-9173-b6c226d94341` |
 | workspace_id | UUID | Foreign key to workspaces (nullable) | `39f39454-077e-4dea-9173-b6c226d94341` |
 | createdAt | TIMESTAMP | Creation timestamp | `2025-11-22 13:47:58.519+03` |
 | updatedAt | TIMESTAMP | Last update timestamp | `2025-11-22 13:47:58.519+03` |
@@ -180,6 +229,7 @@ The application will be available at:
 | id | UUID | Primary key |
 | content | TEXT | Comment content |
 | article_id | UUID | Foreign key to articles |
+| user_id | UUID | Foreign key to users |
 | createdAt | TIMESTAMP | Creation timestamp |
 | updatedAt | TIMESTAMP | Last update timestamp |
 
@@ -204,15 +254,18 @@ The application will be available at:
 │   ├── models/
 │   │   ├── Article.js     # Sequelize Article model
 │   │   ├── Comment.js     # Sequelize Comment model
-
+│   │   ├── User.js        # Sequelize User model
 │   │   ├── Workspace.js   # Sequelize Workspace model
 │   │   └── index.js       # Model associations
 │   ├── routes/
 │   │   ├── articles.js    # Article API routes
+│   │   ├── auth.js        # Authentication API routes
 │   │   ├── comments.js    # Comment API routes
-
-│   │   └── workspaces.js  # Workspace API routes
+│   │   ├── users.js       # User management API routes (admin only)
+│   │   ├── workspaces.js  # Workspace API routes
+│   │   └── index.js       # Route configuration
 │   ├── middleware/
+│   │   ├── auth.js          # JWT authentication & RBAC (Role-Based Access Control) middleware
 │   │   └── errorHandler.js  # Error handling middleware
 │   ├── services/
 │   │   ├── articleService.js    # Article business logic
@@ -221,13 +274,19 @@ The application will be available at:
 │   │   └── websocketService.js  # WebSocket notifications
 │   ├── migrations/        # Database migration files
 │   ├── seeders/           # Database seed files
+│   ├── make-admin.js      # Script to make user admin
 │   ├── server.js          # Main server file
 │   ├── validators.js      # Input validation
+│   ├── constants.js       # Constants (roles, limits, etc.)
 │   └── .env               # Environment variables
 ├── frontend/
 │   ├── src/
 │   │   ├── components/    # Vue components
-│   │   ├── constants.js   # API configuration
+│   │   ├── api/
+│   │   │   ├── auth.js      # Authentication API calls
+│   │   │   ├── storage.js   # localStorage management
+│   │   │   └── index.js     # Axios configuration
+│   │   ├── constants.js   # Constants (roles, API config)
 │   │   ├── App.vue        # Main app component
 │   │   └── main.js        # Entry point
 │   ├── index.html
@@ -238,8 +297,9 @@ The application will be available at:
 ## Technologies Used
 
 - **Frontend**: Vue.js 3, Quill.js WYSIWYG editor, Axios, Vite, DOMPurify
-- **Backend**: Node.js, Express.js, CORS, Multer, WebSockets
+- **Backend**: Node.js, Express.js, CORS, Multer, WebSockets, JWT, bcrypt
 - **Database**: PostgreSQL with Sequelize ORM
+- **Authentication**: JWT tokens, bcrypt password hashing
 - **Storage**: PostgreSQL database for articles, file system for uploads
 - **Real-time**: WebSocket connections for live notifications
 - **Security**: File type validation

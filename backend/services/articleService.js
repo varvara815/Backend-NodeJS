@@ -1,9 +1,4 @@
-import {
-  Article,
-  Comment,
-  Workspace,
-  User,
-} from '../models/index.js';
+import { Article, Comment, Workspace, User } from '../models/index.js';
 import { validateArticle } from '../validators.js';
 import {
   DEFAULT_PAGE_SIZE,
@@ -13,6 +8,7 @@ import {
 } from '../constants.js';
 import { fileService } from './fileService.js';
 import sequelize from '../config/database.js';
+import { Op } from 'sequelize';
 import path from 'path';
 import fs from 'fs/promises';
 import { UPLOADS_DIR } from '../constants.js';
@@ -21,7 +17,7 @@ import { articleVersionService } from './articleVersionService.js';
 export const articleService = {
   // Get articles with filtering and pagination
   async getArticles(query) {
-    const { workspace_id, page = 1, limit = DEFAULT_PAGE_SIZE } = query;
+    const { workspace_id, page = 1, limit = DEFAULT_PAGE_SIZE, search } = query;
     let whereClause = {};
 
     if (workspace_id === 'null') {
@@ -30,9 +26,24 @@ export const articleService = {
       whereClause = { workspace_id };
     }
 
+    if (search && typeof search === 'string') {
+      const trimmedSearch = search.trim();
+      if (trimmedSearch) {
+        if (trimmedSearch.length > 100) {
+          throw new Error('Search query is too long (max 100 chars).');
+        }
+        const escapedSearch = trimmedSearch.replace(/[%_]/g, '\\$&');
+        whereClause[Op.or] = [
+          { title: { [Op.iLike]: `%${escapedSearch}%` } },
+          { content: { [Op.iLike]: `%${escapedSearch}%` } },
+        ];
+      }
+    }
+
     const offset = (parseInt(page) - 1) * parseInt(limit);
 
     return await Article.findAll({
+      attributes: ['id', 'title', 'createdAt', 'user_id', 'workspace_id'],
       where: whereClause,
       include: [
         { model: Workspace, as: 'Workspace', attributes: ['id', 'name'] },
@@ -120,7 +131,10 @@ export const articleService = {
       throw new Error('Article not found');
     }
 
-    if (String(article.user_id) !== String(user.userId) && user.role !== ROLES.ADMIN) {
+    if (
+      String(article.user_id) !== String(user.userId) &&
+      user.role !== ROLES.ADMIN
+    ) {
       throw new Error('You do not have permission to edit this article');
     }
 
@@ -219,8 +233,13 @@ export const articleService = {
     const transaction = await sequelize.transaction();
     try {
       // Check if file is used in other versions BEFORE creating new version
-      const isUsedInOtherVersions = await articleVersionService.isFileUsedInVersions(articleId, filename, transaction);
-      
+      const isUsedInOtherVersions =
+        await articleVersionService.isFileUsedInVersions(
+          articleId,
+          filename,
+          transaction
+        );
+
       await article.update(
         { attachments: updatedAttachments },
         { transaction }
@@ -229,9 +248,9 @@ export const articleService = {
       // Get fresh article data and create new version
       const updatedArticle = await Article.findByPk(articleId, { transaction });
       await articleVersionService.createNewVersion(updatedArticle, transaction);
-      
+
       await transaction.commit();
-      
+
       if (!isUsedInOtherVersions) {
         await fs.unlink(path.join(UPLOADS_DIR, filename));
       }
@@ -248,7 +267,10 @@ export const articleService = {
       throw new Error('Article not found');
     }
 
-    if (String(article.user_id) !== String(user.userId) && user.role !== ROLES.ADMIN) {
+    if (
+      String(article.user_id) !== String(user.userId) &&
+      user.role !== ROLES.ADMIN
+    ) {
       throw new Error('You do not have permission to delete this article');
     }
 

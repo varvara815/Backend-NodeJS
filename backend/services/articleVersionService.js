@@ -50,7 +50,10 @@ export const articleVersionService = {
   async getArticleVersion(articleId, versionNumber) {
     const version = await ArticleVersion.findOne({
       where: { article_id: articleId, version_number: versionNumber },
-      include: [{ model: Workspace, as: 'Workspace', attributes: ['id', 'name'] }],
+      include: [
+        { model: Workspace, as: 'Workspace', attributes: ['id', 'name'] },
+        { model: User, as: 'User', attributes: ['id', 'email'] }
+      ],
     });
 
     if (!version) {

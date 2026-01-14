@@ -21,6 +21,13 @@
         <button v-if="article && !editing" @click="showVersions = !showVersions" class="btn-versions">
           {{ showVersions ? 'Hide' : 'Show' }} Versions
         </button>
+        <button 
+          v-if="article && !editing" 
+          @click="handleExportClick" 
+          class="btn-export-pdf"
+        >
+          Export as PDF
+        </button>
       </div>
       <div v-if="article && !editing && !isViewingVersion && canEditArticle" class="action-buttons">
         <button @click="startEdit" class="btn-edit">Edit</button>
@@ -40,8 +47,10 @@
           @click="viewVersion(version.version_number)"
         >
           <div class="version-header">
-            <span class="version-number">Version {{ version.version_number }}</span>
-            <span class="version-date"> {{ formatDate(version.createdAt) }}</span>
+            <div>
+              <span class="version-number">Version {{ version.version_number }}</span>
+              <span class="version-date"> {{ formatDate(version.createdAt) }}</span>
+            </div>
           </div>
           <div class="version-title">{{ version.title }}</div>
         </div>
@@ -105,6 +114,7 @@ export default {
   props: ['articleId'],
   data() {
     return {
+      UPLOADS_BASE_URL,
       article: null,
       loading: false,
       error: null,
@@ -295,6 +305,69 @@ export default {
       this.hasNewVersion = false;
       this.loadArticle(this.articleId);
       this.fetchVersions();
+    },
+    async exportPDF(version = null) {
+      const token = localStorage.getItem('token');
+      if (!token) {
+        this.$emit('auth-error');
+        return;
+      }
+
+      let url = `${api.defaults.baseURL}/articles/${this.articleId}`;
+      if (version) {
+        url += `/versions/${version}`;
+      }
+      url += `/export-pdf`;
+
+      this.showSuccessMessage('Exporting PDF, please wait...');
+
+      try {
+        const response = await fetch(url, {
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          if (response.headers.get('Content-Type')?.includes('application/json')) {
+            const errData = await response.json();
+            throw new Error(errData.error || `Server error: ${response.status}`);
+          }
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+
+        const safeTitle = (this.article.title || 'article').substring(0, 50).replace(/[/\\?%*:|"<>]/g, '-');
+        const versionNum = version || this.currentVersion || 1;
+        const filename = `${safeTitle}_v${versionNum}.pdf`;
+
+        const blob = await response.blob();
+        const blobUrl = window.URL.createObjectURL(blob);
+
+        const tempLink = document.createElement('a');
+        tempLink.style.display = 'none';
+        tempLink.href = blobUrl;
+        tempLink.setAttribute('download', filename);
+
+        document.body.appendChild(tempLink);
+        tempLink.click();
+        
+        document.body.removeChild(tempLink);
+        window.URL.revokeObjectURL(blobUrl);
+
+        this.showSuccessMessage('PDF has been exported successfully!');
+      } catch (error) {
+        console.error('PDF Export error:', error);
+        this.error = `Failed to export PDF: ${error.message}`;
+        this.successMessage = null;
+      }
+    },
+
+    handleExportClick() {
+      if (this.isViewingVersion) {
+        this.exportPDF(this.currentVersion);
+      } else {
+        this.exportPDF();
+      }
     }
   }
 }
@@ -390,6 +463,15 @@ button {
 }
 
 .btn-versions:hover {
+  background: #138496;
+}
+
+.btn-export-pdf {
+  background: #17a2b8;
+  font-size: 14px;
+}
+
+.btn-export-pdf:hover {
   background: #138496;
 }
 

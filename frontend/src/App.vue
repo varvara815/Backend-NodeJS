@@ -318,7 +318,7 @@ header h1 {
 }
 
 .logout-btn {
-  background: #e74c3c;
+  background: #8a8a89;
   color: white;
   border: none;
   padding: 8px 16px;
@@ -328,7 +328,7 @@ header h1 {
 }
 
 .logout-btn:hover {
-  background: #c0392b;
+  background: #757574;
 }
 
 nav button {

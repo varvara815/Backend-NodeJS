@@ -1,10 +1,6 @@
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-// ES module workaround for __dirname
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 // File upload constants
 export const FILE_SIZE_LIMIT = 10 * 1024 * 1024; // 10MB
 export const ALLOWED_FILE_TYPES = [
@@ -22,9 +18,10 @@ export const MAX_COMMENTS_PER_ARTICLE = 50;
 // Validation constants
 export const MAX_TITLE_LENGTH = 200;
 export const MAX_CONTENT_LENGTH = 50000;
+export const MAX_SEARCH_QUERY_LENGTH = 100;
 
 // Paths
-export const UPLOADS_DIR = path.join(__dirname, '..', 'uploads');
+export const UPLOADS_DIR = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'uploads');
 
 // Authentication constants
 export const JWT_EXPIRES_IN = '24h';

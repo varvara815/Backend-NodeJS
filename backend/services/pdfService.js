@@ -2,9 +2,6 @@ import PDFDocument from 'pdfkit';
 import path from 'path';
 import { fileURLToPath } from 'url';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
-
 const styleConfig = {
   fonts: {
     regular: 'Roboto-Regular',
@@ -35,7 +32,7 @@ export const pdfService = {
 
     try {
       // Register custom fonts to ensure consistent output.
-      const fontDir = path.join(__dirname, '..', 'assets', 'fonts');
+      const fontDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'fonts');
       doc.registerFont(
         styleConfig.fonts.regular,
         path.join(fontDir, 'roboto-regular-webfont.ttf')

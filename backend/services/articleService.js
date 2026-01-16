@@ -5,6 +5,7 @@ import {
   MAX_COMMENTS_PER_ARTICLE,
   FILE_SIZE_LIMIT,
   ROLES,
+  MAX_SEARCH_QUERY_LENGTH,
 } from '../constants.js';
 import { fileService } from './fileService.js';
 import sequelize from '../config/database.js';
@@ -29,8 +30,10 @@ export const articleService = {
     if (search && typeof search === 'string') {
       const trimmedSearch = search.trim();
       if (trimmedSearch) {
-        if (trimmedSearch.length > 100) {
-          throw new Error('Search query is too long (max 100 chars).');
+        if (trimmedSearch.length > MAX_SEARCH_QUERY_LENGTH) {
+          throw new Error(
+            `Search query is too long (max ${MAX_SEARCH_QUERY_LENGTH} chars).`
+          );
         }
         const escapedSearch = trimmedSearch.replace(/[%_]/g, '\\$&');
         whereClause[Op.or] = [

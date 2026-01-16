@@ -134,16 +134,12 @@ The application will be available at:
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:3001
 
-**Default login credentials:**
-- Email: `admin@example.com`
-- Password: `password123`
-
 **To make a user admin:**
 ```bash
-# Edit backend/make-admin.js to set the email, then run:
-cd backend
-node make-admin.js
-# Then the user must logout and login again to get new JWT token with admin role
+# To make a user an admin, run the script from the project root directory
+# and provide the user's email as an argument:
+node backend/make-admin.js user@example.com
+# The user must then log out and log in again to get a new JWT token with the admin role.
 ```
 
 ## API Endpoints
